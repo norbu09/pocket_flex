@@ -27,7 +27,8 @@ defmodule PocketFlex.MixProject do
     [
       {:ex_doc, ">= 0.29.0", only: :dev, runtime: false},
       {:dialyxir, ">= 1.3.0", only: [:dev], runtime: false},
-      {:credo, ">= 1.7.0", only: [:dev, :test], runtime: false}
+      {:credo, ">= 1.7.0", only: [:dev, :test], runtime: false},
+      {:meck, ">= 0.9.2", only: :test}
     ]
   end
 

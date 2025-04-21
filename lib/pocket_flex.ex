@@ -3,137 +3,24 @@ defmodule PocketFlex do
   PocketFlex is an Elixir implementation of a flexible, node-based processing framework.
 
   It provides a system for creating flows of connected nodes, where each node 
-  performs a specific task and passes data to the next node.
+  can process data and pass it to the next node in the flow.
 
-  ## Features
+  ## Core Features
 
-  - **Simple Node API**: Define nodes with prep, exec, and post lifecycle methods
-  - **Flexible Flow Control**: Connect nodes with conditional branching
-  - **Concurrency Support**: Run flows asynchronously using Elixir processes
-  - **Batch Processing**: Process lists of items sequentially or in parallel
-  - **Clean DSL**: Create flows with an intuitive syntax
-  - **Retry Logic**: Built-in support for retrying failed operations
-  - **Efficient State Management**: Simplified state storage using a single ETS table
+  - **Flow-based processing**: Define flows of connected nodes for data processing
+  - **Batch processing**: Process multiple items through a flow sequentially
+  - **Parallel processing**: Process multiple items through a flow in parallel
+  - **Asynchronous execution**: Run flows asynchronously with Task
+  - **Error handling**: Comprehensive error handling and recovery mechanisms
+  - **State management**: Flexible state storage for flow execution
 
-  ## State Management
+  ## Documentation
 
-  PocketFlex uses a shared state storage system to maintain flow state across nodes:
-
-  ```elixir
-  # Get the current state for a flow
-  state = PocketFlex.StateStorage.get_state(flow_id)
-
-  # Update the state for a flow
-  PocketFlex.StateStorage.update_state(flow_id, new_state)
-
-  # Merge updates into the current state
-  PocketFlex.StateStorage.merge_state(flow_id, state_updates)
-
-  # Clean up the state when done
-  PocketFlex.StateStorage.cleanup(flow_id)
-  ```
-
-  For more details, see the [State Storage Guide](state_storage.html).
-
-  ## Basic Usage
-
-  ### Defining Nodes
-
-  ```elixir
-  defmodule MyApp.Nodes.GetQuestionNode do
-    use PocketFlex.NodeMacros
-    
-    @impl true
-    def exec(_) do
-      IO.gets("Enter your question: ")
-      |> String.trim()
-    end
-    
-    @impl true
-    def post(shared, _prep_res, exec_res) do
-      {:default, Map.put(shared, "question", exec_res)}
-    end
-  end
-
-  defmodule MyApp.Nodes.AnswerNode do
-    use PocketFlex.NodeMacros
-    
-    @impl true
-    def prep(shared) do
-      Map.get(shared, "question")
-    end
-    
-    @impl true
-    def exec(question) do
-      # Process the question and generate an answer
-      "The answer to '\#{question}' is 42."
-    end
-    
-    @impl true
-    def post(shared, _prep_res, exec_res) do
-      {:default, Map.put(shared, "answer", exec_res)}
-    end
-  end
-  ```
-
-  ### Creating and Running a Flow
-
-  ```elixir
-  # Create a new flow
-  flow =
-    PocketFlex.Flow.new()
-    |> PocketFlex.Flow.add_node(MyApp.Nodes.GetQuestionNode)
-    |> PocketFlex.Flow.add_node(MyApp.Nodes.AnswerNode)
-    |> PocketFlex.Flow.connect(MyApp.Nodes.GetQuestionNode, MyApp.Nodes.AnswerNode)
-    |> PocketFlex.Flow.start(MyApp.Nodes.GetQuestionNode)
-
-  # Run the flow
-  {:ok, final_state} = PocketFlex.Flow.run(flow, %{})
-
-  # Access the result
-  IO.puts(final_state["answer"])
-  ```
-
-  ### Using the DSL
-
-  ```elixir
-  import PocketFlex.DSL
-
-  flow =
-    flow do
-      node GetQuestionNode
-      node AnswerNode
-      
-      GetQuestionNode -> AnswerNode
-      
-      start_with GetQuestionNode
-    end
-
-  {:ok, final_state} = PocketFlex.Flow.run(flow, %{})
-  ```
-
-  ### Async Batch Processing
-
-  ```elixir
-  # Create a flow with batch processing nodes
-  flow =
-    PocketFlex.Flow.new()
-    |> PocketFlex.Flow.add_node(MyApp.Nodes.BatchProcessorNode)
-    |> PocketFlex.Flow.add_node(MyApp.Nodes.ResultAggregatorNode)
-    |> PocketFlex.Flow.connect(MyApp.Nodes.BatchProcessorNode, MyApp.Nodes.ResultAggregatorNode)
-    |> PocketFlex.Flow.start(MyApp.Nodes.BatchProcessorNode)
-
-  # Initial state with items to process
-  initial_state = %{"items" => [1, 2, 3, 4, 5]}
-
-  # Run the flow asynchronously
-  task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, initial_state)
-
-  # Wait for the result
-  {:ok, final_state} = Task.await(task)
-  ```
-
+  For more detailed information, visit the [hexdocs.pm documentation](https://hexdocs.pm/pocket_flex).
   """
+
+  require Logger
+  alias PocketFlex.ErrorHandler, as: ErrorHandler
 
   @doc """
   Runs a flow with the given shared state.
@@ -213,15 +100,18 @@ defmodule PocketFlex do
   ## Parameters
     - flow: The flow to run
     - shared: The initial shared state
+    - opts: Additional options for parallel execution
+      - :max_concurrency - Maximum number of concurrent tasks (default: System.schedulers_online * 2)
+      - :timeout - Timeout for each task in milliseconds (default: 30000)
     
   ## Returns
     A Task that will resolve to either:
       * `{:ok, final_state}` - Success with the final state
       * `{:error, reason}` - Error with the reason
   """
-  @spec run_async_parallel_batch(PocketFlex.Flow.t(), map()) :: Task.t()
-  defdelegate run_async_parallel_batch(flow, shared), to: PocketFlex.AsyncParallelBatchFlow
-  
+  @spec run_async_parallel_batch(PocketFlex.Flow.t(), map(), keyword()) :: Task.t()
+  defdelegate run_async_parallel_batch(flow, shared, opts \\ []), to: PocketFlex.AsyncParallelBatchFlow
+
   @doc """
   Runs a flow asynchronously with the given shared state.
 
@@ -238,6 +128,112 @@ defmodule PocketFlex do
   """
   @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
   def run_async(flow, shared) do
-    Task.async(fn -> PocketFlex.AsyncFlow.orchestrate_async(flow, shared) end)
+    Task.async(fn -> 
+      flow_id = "async_flow_#{:erlang.unique_integer([:positive])}"
+      
+      try do
+        # Start monitoring the flow execution
+        ErrorHandler.start_monitoring(flow_id, flow, shared)
+        
+        # Initialize state storage with the shared state
+        case PocketFlex.StateStorage.update_state(flow_id, shared) do
+          {:ok, _} ->
+            # Execute the flow using AsyncFlow orchestrator
+            result = PocketFlex.AsyncFlow.orchestrate_async(flow, shared)
+            
+            # Complete monitoring with the final status
+            case result do
+              {:ok, final_state} ->
+                ErrorHandler.complete_monitoring(flow_id, :completed, final_state)
+                {:ok, final_state}
+              {:error, reason} ->
+                ErrorHandler.complete_monitoring(flow_id, :failed, %{reason: reason})
+                {:error, reason}
+            end
+            
+          {:error, reason} ->
+            # Report the error
+            error_info = ErrorHandler.report_error(reason, :state_initialization, %{flow_id: flow_id})
+            
+            # Complete monitoring with failed status
+            ErrorHandler.complete_monitoring(flow_id, :failed, %{reason: reason})
+            
+            # Return the error
+            {:error, error_info}
+            
+          shared_state when is_map(shared_state) ->
+            # Execute the flow using AsyncFlow orchestrator with the shared state directly
+            result = PocketFlex.AsyncFlow.orchestrate_async(flow, shared_state)
+            
+            # Complete monitoring with the final status
+            case result do
+              {:ok, final_state} ->
+                ErrorHandler.complete_monitoring(flow_id, :completed, final_state)
+                {:ok, final_state}
+              {:error, reason} ->
+                ErrorHandler.complete_monitoring(flow_id, :failed, %{reason: reason})
+                {:error, reason}
+            end
+        end
+      rescue
+        error ->
+          # Log the error
+          error_info = ErrorHandler.report_error(error, :flow_orchestration, %{
+            flow_id: flow_id,
+            stacktrace: __STACKTRACE__
+          })
+          
+          # Complete monitoring with error status
+          ErrorHandler.complete_monitoring(flow_id, :crashed, %{error: error})
+          
+          # Return error
+          {:error, error_info}
+      after
+        # Always clean up state storage
+        PocketFlex.StateStorage.cleanup(flow_id)
+      end
+    end)
   end
+
+  # Error Handling Functions
+
+  @doc """
+  Reports an error with context information.
+
+  ## Parameters
+    - error: The error that occurred
+    - context: The context in which the error occurred (e.g., :node_execution, :flow_orchestration)
+    - metadata: Additional metadata about the error
+    
+  ## Returns
+    A map containing error information
+  """
+  @spec report_error(term(), atom(), map()) :: map()
+  defdelegate report_error(error, context, metadata \\ %{}), to: ErrorHandler
+
+  # Retry Functions
+
+  @doc """
+  Retries a function with configurable retry options.
+
+  See `PocketFlex.Retry.retry/2` for details.
+  """
+  @spec retry(function(), keyword()) :: any() | {:error, term()}
+  defdelegate retry(function, opts \\ []), to: PocketFlex.Retry
+
+  @doc """
+  Retries a function with exponential backoff.
+
+  See `PocketFlex.Retry.with_backoff/2` for details.
+  """
+  @spec with_backoff(function(), keyword()) :: any() | {:error, term()}
+  defdelegate with_backoff(function, opts \\ []), to: PocketFlex.Retry
+
+  @doc """
+  Retries a function with a circuit breaker pattern.
+
+  See `PocketFlex.Retry.with_circuit_breaker/2` for details.
+  """
+  @spec with_circuit_breaker(function(), keyword()) :: any() | {:error, term()}
+  defdelegate with_circuit_breaker(function, opts \\ []), to: PocketFlex.Retry
 end

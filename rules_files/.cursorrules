@@ -1,0 +1,40 @@
+# Rules for working within the `rules_files` directory
+
+This file provides specific guidance when editing the PocketFlex framework documentation and examples contained within this `rules_files` directory. These rules supplement the general project rules found in the root `.cursorrules` file.
+
+## General Structure
+
+- **`.windsurfrules`**: This is the main high-level guide ("Agentic Coding with PocketFlex"). It introduces concepts and references detailed documentation and examples.
+- **`docs/`**: Contains detailed documentation files (Markdown format) covering Core Abstractions, Design Patterns, and Tutorials.
+- **`examples/`**: Contains standalone Elixir code snippets (`.ex` files) referenced from the `.windsurfrules` guide and potentially the `docs/` files.
+
+## Content and Consistency
+
+- **Framework Context**: All documentation and examples should primarily describe and use the **PocketFlex** framework concepts (Nodes, Flows, Shared State, etc.).
+- **LLM Interaction Exception**: When showing code examples that *directly invoke an LLM*, use the **LangchainEx** library (as demonstrated in `examples/llm_caller.ex`). This provides flexibility in the LLM backend. Nodes *using* the LLM should call this utility wrapper.
+- **Consistency**: Ensure consistency between the `.windsurfrules` guide, the detailed documentation in `docs/`, and the code in `examples/`. If a concept is updated in one place, check if related explanations or examples in other files need updating.
+- **Linking**: 
+    - Within `.windsurfrules`, use relative links (e.g., `[Node](./docs/core_abstraction/node.md)`, `[Example](examples/llm_caller.ex)`) to point to detailed docs or examples.
+    - Within files in `docs/`, use relative links to refer to other docs (e.g., `[Node](../core_abstraction/node.md)`) or examples (e.g., `[LLM Caller Example](../../examples/llm_caller.ex)`).
+
+## Guide (`.windsurfrules`)
+
+- Keep this file as a high-level overview and guide to the Agentic Coding process with PocketFlex.
+- Avoid putting very long code blocks or extremely detailed explanations here; instead, reference the appropriate files in `docs/` or `examples/`.
+- Ensure the Agentic Coding steps and overall narrative remain clear and focused.
+
+## Documentation (`docs/`)
+
+- Use clear and concise language.
+- Use standard Markdown formatting.
+- Organize files logically within subdirectories (`core_abstraction`, `design_pattern`, `tutorials`).
+- Use code blocks (` ```elixir ... ``` `) for short Elixir examples where appropriate, but prefer referencing larger examples in the `examples/` directory if the snippet becomes too long.
+- Explain PocketFlex concepts clearly, referencing Elixir/OTP principles where relevant.
+
+## Examples (`examples/`)
+
+- Each `.ex` file should represent a focused, runnable (or near-runnable, perhaps requiring minor setup) code snippet illustrating a specific concept.
+- Follow the general Elixir coding standards defined in the root `.cursorrules` (formatting with `mix format`, logging with `Logger`, error handling with tuples, etc.).
+- Use comments (`#`) to explain the code and its relation to PocketFlex concepts.
+- Keep examples minimal and directly relevant to the point being illustrated in the guide or docs.
+- Ensure the `llm_caller.ex` example correctly uses `LangchainEx` patterns. 

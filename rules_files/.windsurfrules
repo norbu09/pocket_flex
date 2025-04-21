@@ -1,0 +1,178 @@
+---
+layout: default
+title: "Agentic Coding with PocketFlex"
+---
+
+# Agentic Coding: Humans Design, Agents Code with PocketFlex!
+
+> If you are an AI agent involved in building LLM Systems with Elixir and PocketFlex, read this guide **VERY, VERY** carefully! This is the most important chapter in the entire document. Throughout development, you should always (1) start with a small and simple solution, (2) design at a high level (see `docs/design.md`) before implementation, and (3) frequently ask humans for feedback and clarification.
+{: .warning }
+
+This guide outlines the high-level steps for building applications with PocketFlex. For more detailed documentation on core concepts, design patterns, and tutorials, please refer to the `docs/` subdirectory within this `rules_files` directory (starting with `docs/index.md`).
+
+## Agentic Coding Steps
+
+Agentic Coding with PocketFlex should be a collaboration between Human System Design and Agent Implementation:
+
+| Steps                  | Human      | AI        | Comment                                                                 |
+|:-----------------------|:----------:|:---------:|:------------------------------------------------------------------------|
+| 1. Requirements | ★★★ High  | ★☆☆ Low   | Humans understand the requirements and context.                    |
+| 2. Flow Design     | ★★☆ Medium | ★★☆ Medium | Humans specify the high-level design ([Nodes](./docs/core_abstraction/node.md), connections/[Control Flow](./docs/core_abstraction/control_flow.md)), AI helps refine details using PocketFlex concepts. |
+| 3. Utilities       | ★★☆ Medium | ★★☆ Medium | Humans provide external APIs/logic, AI helps implement them as Elixir modules/functions, potentially using LangchainEx for LLM calls. |
+| 4. Node Design     | ★☆☆ Low   | ★★★ High  | The AI helps design node modules (implementing PocketFlex behaviours, see [Node](./docs/core_abstraction/node.md)) and data handling ([Shared State](./docs/core_abstraction/communication.md)). |
+| 5. Implementation  | ★☆☆ Low   | ★★★ High  | The AI implements the flow and nodes using Elixir and PocketFlex based on the design. |
+| 6. Optimization    | ★★☆ Medium | ★★☆ Medium | Humans evaluate results, AI helps optimize Elixir code, PocketFlex configuration, and potentially LLM prompts/models via LangchainEx. |
+| 7. Reliability     | ★☆☆ Low   | ★★★ High  | The AI writes ExUnit tests, addresses corner cases using Elixir patterns, and ensures proper logging/error handling. |
+
+1.  **Requirements**: Clarify project requirements, evaluate if PocketFlex is suitable.
+    *   Understand AI system strengths/limitations.
+    *   **Keep It User-Centric.**
+    *   **Balance complexity vs. impact.**
+
+2.  **Flow Design**: Outline the high-level orchestration of PocketFlex nodes.
+    *   Identify patterns (e.g., [MapReduce](./docs/design_pattern/mapreduce.md), [Agent](./docs/design_pattern/agent.md), [RAG](./docs/design_pattern/rag.md), [Workflow](./docs/design_pattern/workflow.md)). See the `docs/design_pattern/` directory for details.
+    *   Describe each node's purpose concisely. (See [Node](./docs/core_abstraction/node.md))
+    *   Draw the flow (e.g., using Mermaid).
+    *   Example Flow Diagram:
+      ```mermaid
+      graph TD
+          A[Start: Get User Query] --> B{Node: Format Query};
+          B --> C{Node: Retrieve Docs}; 
+          C --> D{Node: Synthesize Answer (LLM)};
+          D --> E[End: Present Answer];
+          B --> E; # Alternative path on error/simple query?
+      ```
+    *   > **If Humans can't specify the flow, AI Agents can't automate it!**
+      {: .best-practice }
+
+3.  **Utilities**: Implement necessary external interactions as Elixir modules.
+    *   PocketFlex nodes call these utility modules.
+    *   Reading inputs (e.g., `File.read!/1`, `Req.get/1` for APIs).
+    *   Writing outputs (e.g., Ecto DB interactions, `Req.post/2`).
+    *   External Tools/LLMs: Implement wrappers. **Use LangchainEx specifically for LLM calls.**
+    *   Implement utilities first, test with `mix test`.
+    *   Document with `@moduledoc`, `@doc`, `@spec`.
+    *   **Example LLM Utility using LangchainEx:**
+      
+      See: `examples/llm_caller.ex`
+      
+    *   Example Non-LLM Utility (e.g., Web Search):
+      
+      See: `examples/web_search.ex`
+      
+    *   > **Sometimes, design Utilities before Flow.**
+      {: .best-practice }
+
+4.  **Node Design**: Plan PocketFlex nodes (Elixir modules implementing `PocketFlex.Node` behaviour - *assuming this exists*).
+   *   Define the `shared_state` structure (Elixir Map). (See [Communication](./docs/core_abstraction/communication.md))
+
+     Example: See `examples/initial_state.ex`
+     
+   *   For each Node module (See [Node](./docs/core_abstraction/node.md)):
+     *   Define `prep/1`: Extracts data from `shared_state`. Returns `{:ok, prep_data}`.
+     *   Define `exec/1`: Performs logic using `prep_data`, calls Utilities. Returns `{:ok, exec_result}` or `{:error, reason}`.
+     *   Define `post/3`: Updates `shared_state` based on `exec_result`. Returns `{:ok, {:next_action, updated_state}}` (e.g., `{:default, state}`, `{:error, state}`). Use atoms for actions.
+
+5.  **Implementation**: Implement PocketFlex nodes and flow definitions.
+   *   🎉 Agentic Coding with Elixir and PocketFlex begins!
+   *   Implement node modules (`MyProject.Nodes.*`). Example: `examples/synthesize_node.ex`
+   *   Implement flow definition (`MyProject.Flow.define_my_flow/0`). Example: `examples/flow_definition.ex`
+   *   **Keep it simple.** Use pattern matching, `with` statements.
+   *   **FAIL FAST.** Handle errors explicitly with `:ok`/`:error` tuples.
+   *   Add `Logger` calls (`require Logger`).
+   *   Follow project coding standards (`mix format`, `mix credo`).
+
+7.  **Optimization**:
+   *   **Use Intuition/Manual Eval.**
+   *   **Redesign Flow**: Adjust node sequence, add/remove nodes, change transition logic. (See [Control Flow](./docs/core_abstraction/control_flow.md))
+   *   **Micro-optimizations**:
+     *   **Prompt Engineering**: Refine prompts passed to the `LLMCaller` utility.
+     *   **Model Selection**: Adjust `llm_config` passed to `LLMCaller` to use different models via LangchainEx.
+     *   **Node Logic**: Optimize Elixir code within `exec/1` functions.
+     *   **Concurrency**: Use `Task.async` within nodes if appropriate, or use PocketFlex async node types if available. (See [MapReduce Pattern](./docs/design_pattern/mapreduce.md))
+
+   *   > **Iteration is key!** Use `mix test` and `mix credo` regularly.
+     {: .best-practice }
+
+8.  **Reliability**
+   *   **Node Retries**: Implement retry logic within `exec/1` or use a PocketFlex built-in mechanism if available.
+   *   **Error Handling**: Ensure `post/3` handles `{:error, reason}` from `exec/1` appropriately (e.g., logs error, sets error state, transitions to an error handling node). Define clear error paths in the flow definition.
+   *   **Logging**: Use `Logger` with context (e.g., flow ID, node name) in `prep`, `exec`, and `post`.
+   *   **Testing**: Write comprehensive ExUnit tests for each node. Use `Mox` to mock Utilities (like `LLMCaller` and `WebSearch`). Test flows with different initial states and expected transitions.
+   *   **Self-Evaluation**: Implement a specific PocketFlex node that uses `LLMCaller` (via LangchainEx) to review the output of previous nodes.
+
+## Example PocketFlex Project File Structure (Elixir)
+
+```
+my_project/
+├── mix.exs
+├── mix.lock
+├── README.md
+├── .formatter.exs
+├── lib/
+│   ├── my_project/
+│   │   ├── application.ex      # OTP application
+│   │   ├── flow.ex             # PocketFlex flow definitions
+│   │   ├── nodes/              # PocketFlex node modules
+│   │   │   ├── get_query_node.ex
+│   │   │   ├── format_node.ex
+│   │   │   ├── retrieve_node.ex
+│   │   │   └── synthesize_node.ex # Node using LLMCaller
+│   │   └── utils/              # Utility modules
+│   │       ├── llm_caller.ex     # Calls LangchainEx
+│   │       └── web_search.ex
+│   └── my_project.ex         # Main application module (optional)
+├── test/
+│   ├── test_helper.exs
+│   ├── support/
+│   │   └── mox_mocks.ex        # Mox defmocks for utilities
+│   └── my_project/
+│       ├── flow_test.exs
+│       ├── nodes/
+│       │   ├── get_query_node_test.exs
+│       │   ├── format_node_test.exs
+│       │   ├── retrieve_node_test.exs
+│       │   └── synthesize_node_test.exs
+│       └── utils/
+│           ├── llm_caller_test.exs
+│           └── web_search_test.exs
+├── config/
+├── priv/
+└── docs/                   # Project-specific design docs
+    └── design.md
+
+rules_files/                # PocketFlex framework docs & examples
+├── .windsurfrules          # This file (Agentic Coding Guide)
+├── docs/                   # Detailed framework documentation
+│   ├── index.md
+│   ├── core_abstraction/
+│   ├── design_pattern/
+│   └── tutorials/
+└── examples/               # Code examples referenced in this guide
+    ├── llm_caller.ex
+    └── ... 
+```
+
+- **`lib/my_project/utils/llm_caller.ex`**: Contains the LangchainEx wrapper.
+  
+  See: `examples/llm_caller.ex`
+  
+- **`lib/my_project/nodes/synthesize_node.ex`**: Example node calling the LLM utility.
+  
+  See: `examples/synthesize_node.ex`
+  
+- **`lib/my_project/flow.ex`**: Defines the flow connecting these nodes (example assuming PocketFlex API).
+  
+  See: `examples/flow_definition.ex`
+  
+- **Entry Point (`mix run ...` or main function)**: Sets up initial state, gets flow definition, calls `PocketFlex.run/2`.
+
+---
+
+**Further Reading:**
+
+- For detailed explanations of core concepts, see the files in `docs/core_abstraction/`.
+- For implementations of common patterns, see `docs/design_pattern/`.
+- For step-by-step examples, see the tutorials in `docs/tutorials/`.
+
+Remember to adapt PocketFlex API calls based on its actual implementation. Consult LangchainEx docs for LLM configuration and response handling. Follow all project rules (`.cursorrules`). Format code using `mix format`. Check with `mix credo`. 

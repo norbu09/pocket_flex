@@ -99,6 +99,59 @@ defmodule PocketFlex.Flow do
     run_flow(flow, flow.start_node, shared, flow.params)
   end
 
+  @doc """
+  Runs the flow starting from a specific node with the given shared state.
+
+  ## Parameters
+    - flow: The flow to run
+    - node: The node to start from
+    - shared: The initial shared state
+    
+  ## Returns
+    A tuple containing:
+    - :ok and the final shared state, or
+    - :error and an error reason
+  """
+  @spec run_from_node(t(), module(), map()) :: {:ok, map()} | {:error, term()}
+  def run_from_node(flow, node, shared) do
+    run_flow(flow, node, shared, flow.params)
+  end
+
+  @doc """
+  Gets the next node in the flow based on the current node and action.
+
+  ## Parameters
+    - flow: The flow to check
+    - current_node: The current node module
+    - action: The action key to follow
+    
+  ## Returns
+    The next node module or nil if no connection exists for the action
+  """
+  @spec get_next_node(t(), module(), atom()) :: module() | nil
+  def get_next_node(flow, current_node, action) do
+    action = action || :default
+
+    # Convert string action to atom if needed for backward compatibility
+    action = if is_binary(action), do: String.to_atom(action), else: action
+
+    case get_in(flow.connections, [current_node, action]) do
+      nil ->
+        if map_size(get_in(flow.connections, [current_node]) || %{}) > 0 do
+          require Logger
+
+          Logger.warning(
+            "Flow ends: '#{action}' not found in #{inspect(Map.keys(get_in(flow.connections, [current_node])))}"
+          )
+        end
+
+        nil
+
+      next_node ->
+        next_node
+    end
+  end
+
   @doc false
   defp run_flow(_flow, nil, shared, _params), do: {:ok, shared}
 
@@ -122,30 +175,6 @@ defmodule PocketFlex.Flow do
 
       {:error, reason} ->
         {:error, reason}
-    end
-  end
-
-  @doc false
-  defp get_next_node(flow, current_node, action) do
-    action = action || :default
-
-    # Convert string action to atom if needed for backward compatibility
-    action = if is_binary(action), do: String.to_atom(action), else: action
-
-    case get_in(flow.connections, [current_node, action]) do
-      nil ->
-        if map_size(get_in(flow.connections, [current_node]) || %{}) > 0 do
-          require Logger
-
-          Logger.warning(
-            "Flow ends: '#{action}' not found in #{inspect(Map.keys(get_in(flow.connections, [current_node])))}"
-          )
-        end
-
-        nil
-
-      next_node ->
-        next_node
     end
   end
 end

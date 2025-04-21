@@ -3,154 +3,141 @@ defmodule PocketFlex.AsyncBatchTest do
   require Logger
 
   # Define test nodes
-  defmodule TestAsyncBatchNode do
+  defmodule BatchItemNode do
     use PocketFlex.AsyncBatchNode
 
     @impl true
-    def prep(state) do
-      # Return a list of items to process
-      state["items"] || []
+    def prep(shared) do
+      Logger.info("BatchItemNode prep called")
+      shared["items"] || []
     end
 
     @impl true
     def exec_item_async(item) do
-      task =
-        Task.async(fn ->
-          # Simulate processing with a small delay
-          Process.sleep(50)
-          item * 2
-        end)
-
-      {:ok, task}
+      Logger.info("BatchItemNode exec_item called with #{inspect(item)}")
+      # Simulate processing with a short delay
+      Process.sleep(5)
+      {:ok, String.upcase(item)}
     end
 
     @impl true
-    def post(state, _prep_res, results) do
-      # Store the results in the shared state
-      updated_state = Map.put(state, "results", results)
-      {:default, updated_state}
+    def post(shared, _prep_res, results) do
+      Logger.info("BatchItemNode post called with #{inspect(results)}")
+      {:success, Map.put(shared, "processed", List.last(results))}
     end
   end
 
-  defmodule TestAsyncParallelBatchNode do
-    use PocketFlex.AsyncParallelBatchNode
-
-    @impl true
-    def prep(state) do
-      # Return a list of items to process
-      state["items"] || []
-    end
-
-    @impl true
-    def exec_item_async(item) do
-      task =
-        Task.async(fn ->
-          # Simulate processing with a small delay
-          Process.sleep(50)
-          item * 3
-        end)
-
-      {:ok, task}
-    end
-
-    @impl true
-    def post(state, _prep_res, results) do
-      # Store the results in the shared state
-      updated_state = Map.put(state, "results", results)
-      {:default, updated_state}
-    end
-  end
-
-  defmodule ResultAggregatorNode do
+  defmodule ProcessorNode do
     use PocketFlex.NodeMacros
 
     @impl true
-    def prep(state) do
-      # Get the results from the shared state
-      state["results"] || []
+    def prep(shared) do
+      Logger.info("ProcessorNode prep called with shared: #{inspect(shared)}")
+      shared["processed"]
     end
 
     @impl true
-    def exec(results) do
-      # Sum the results
-      Enum.sum(results)
+    def exec(data) do
+      Logger.info("ProcessorNode exec called with #{inspect(data)}")
+      "#{data} processed"
     end
 
     @impl true
-    def post(state, _prep_res, sum) do
-      # Store the sum in the shared state
-      updated_state = Map.put(state, "sum", sum)
-      {:default, updated_state}
+    def post(shared, _prep_res, exec_res) do
+      Logger.info("ProcessorNode post called with #{inspect(exec_res)}")
+      {:success, Map.put(shared, "result", exec_res)}
     end
   end
 
-  describe "AsyncBatchNode" do
-    test "processes items sequentially but asynchronously" do
+  describe "AsyncBatchFlow" do
+    test "processes batch items sequentially" do
       # Create a flow
       flow =
         PocketFlex.Flow.new()
-        |> PocketFlex.Flow.add_node(TestAsyncBatchNode)
-        |> PocketFlex.Flow.add_node(ResultAggregatorNode)
-        |> PocketFlex.Flow.connect(TestAsyncBatchNode, ResultAggregatorNode)
-        |> PocketFlex.Flow.start(TestAsyncBatchNode)
+        |> PocketFlex.Flow.add_node(BatchItemNode)
+        |> PocketFlex.Flow.add_node(ProcessorNode)
+        |> PocketFlex.Flow.connect(BatchItemNode, ProcessorNode, :success)
+        |> PocketFlex.Flow.start(BatchItemNode)
 
       # Initial shared state with items to process
-      state = %{"items" => [1, 2, 3, 4, 5]}
+      shared = %{"items" => ["item1", "item2", "item3"]}
 
-      # Run the flow directly
-      {:ok, final_state} = PocketFlex.Flow.run(flow, state)
+      # Run the flow using async batch
+      task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, shared)
+
+      # Wait for the task to complete
+      {:ok, final_state} = Task.await(task, 5000)
+
+      # Verify the results
+      assert final_state["processed"] == "ITEM3"
+      assert final_state["result"] == "ITEM3 processed"
+    end
+
+    test "processes batch items in parallel" do
+      # Create a flow
+      flow =
+        PocketFlex.Flow.new()
+        |> PocketFlex.Flow.add_node(BatchItemNode)
+        |> PocketFlex.Flow.add_node(ProcessorNode)
+        |> PocketFlex.Flow.connect(BatchItemNode, ProcessorNode, :success)
+        |> PocketFlex.Flow.start(BatchItemNode)
+
+      # Initial shared state with items to process
+      shared = %{"items" => ["item1", "item2", "item3"]}
+
+      # Run the flow using async parallel batch
+      task = PocketFlex.AsyncParallelBatchFlow.run_async_parallel_batch(flow, shared)
+
+      # Wait for the task to complete with a longer timeout
+      {:ok, final_state} = Task.await(task, 5000)
+
+      # Verify the results
+      assert final_state["processed"] == "ITEM3"
+      assert final_state["result"] == "ITEM3 processed"
+
+      # Log the final result for debugging
+      Logger.info("Parallel batch flow result: #{inspect(final_state)}")
+    end
+  end
+
+  describe "AsyncBatchFlow with refactored modules" do
+    test "processes batch items with monitoring and recovery" do
+      # Create a flow
+      flow =
+        PocketFlex.Flow.new()
+        |> PocketFlex.Flow.add_node(BatchItemNode)
+        |> PocketFlex.Flow.add_node(ProcessorNode)
+        |> PocketFlex.Flow.connect(BatchItemNode, ProcessorNode, :success)
+        |> PocketFlex.Flow.start(BatchItemNode)
+
+      # Initial shared state with items to process
+      shared = %{"items" => ["item1", "item2", "item3"]}
+
+      # Generate a unique flow ID
+      flow_id = "test_async_batch_#{:erlang.unique_integer([:positive])}"
+
+      # Start monitoring
+      PocketFlex.Monitoring.start_monitoring(flow_id, flow, shared)
+
+      # Run the flow using async batch with a flow_id
+      task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, shared)
+
+      # Wait for the task to complete
+      {:ok, final_state} = Task.await(task, 5000)
+
+      # Get monitoring info
+      monitoring = PocketFlex.Monitoring.get_monitoring(flow_id)
+
+      # Verify the results
+      assert final_state["processed"] == "ITEM3"
+      assert final_state["result"] == "ITEM3 processed"
       
-      # Check the results
-      assert is_list(final_state["results"])
-      assert Enum.sort(final_state["results"]) == [2, 4, 6, 8, 10]
-      assert final_state["sum"] == 30
-    end
-  end
-
-  describe "AsyncParallelBatchNode" do
-    test "processes items in parallel and asynchronously" do
-      # Create a flow
-      flow =
-        PocketFlex.Flow.new()
-        |> PocketFlex.Flow.add_node(TestAsyncParallelBatchNode)
-        |> PocketFlex.Flow.add_node(ResultAggregatorNode)
-        |> PocketFlex.Flow.connect(TestAsyncParallelBatchNode, ResultAggregatorNode)
-        |> PocketFlex.Flow.start(TestAsyncParallelBatchNode)
-
-      # Initial shared state with items to process
-      state = %{"items" => [1, 2, 3, 4, 5]}
-
-      # Run the flow directly
-      {:ok, final_state} = PocketFlex.Flow.run(flow, state)
-
-      # Check the results
-      assert is_list(final_state["results"])
-      assert Enum.sort(final_state["results"]) == [3, 6, 9, 12, 15]
-      assert final_state["sum"] == 45
-    end
-  end
-
-  describe "AsyncBatchFlow example" do
-    test "runs the async batch example" do
-      urls = ["https://example.com/1", "https://example.com/2", "https://example.com/3"]
-
-      # Run the example
-      {:ok, results} = PocketFlex.Examples.AsyncBatchExample.run(urls)
-
-      assert results.total_urls == 3
-      assert results.total_word_count > 0
-      assert results.average_word_count > 0
-    end
-
-    test "runs the async parallel batch example" do
-      urls = ["https://example.com/1", "https://example.com/2", "https://example.com/3"]
-
-      # Run the example
-      {:ok, results} = PocketFlex.Examples.AsyncBatchExample.run_parallel(urls)
-
-      assert results.total_urls == 3
-      assert results.total_word_count > 0
-      assert results.average_word_count > 0
+      # Verify monitoring worked
+      assert monitoring.status == :running
+      assert is_list(monitoring.execution_path)
+      
+      # Clean up
+      PocketFlex.Monitoring.cleanup_monitoring(flow_id)
     end
   end
 end

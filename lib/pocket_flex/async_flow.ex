@@ -4,9 +4,21 @@ defmodule PocketFlex.AsyncFlow do
 
   Extends the basic Flow module with support for asynchronous
   execution using Elixir processes.
+
+  This module provides:
+  - Running flows asynchronously with Task
+  - Orchestrating flows with async nodes
+  - Monitoring flow execution
+  - Error handling for async operations
+
+  For implementation details, see:
+  - `PocketFlex.AsyncFlow.Executor` - Handles execution of individual nodes
+  - `PocketFlex.AsyncFlow.Orchestrator` - Manages flow between nodes
   """
 
   require Logger
+  alias PocketFlex.ErrorHandler
+  alias PocketFlex.AsyncFlow.Orchestrator
 
   @doc """
   Runs the flow asynchronously with the given shared state.
@@ -14,15 +26,69 @@ defmodule PocketFlex.AsyncFlow do
   ## Parameters
     - flow: The flow to run
     - state: The initial shared state
+    - opts: Optional parameters for flow execution
     
   ## Returns
     A Task that will resolve to either:
       * `{:ok, final_state}` - Success with the final state
       * `{:error, reason}` - Error with the reason
   """
-  @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
-  def run_async(flow, state) do
-    Task.async(fn -> PocketFlex.Flow.run(flow, state) end)
+  @spec run_async(PocketFlex.Flow.t(), map(), keyword()) :: Task.t()
+  def run_async(flow, state, opts \\ []) do
+    Task.async(fn -> 
+      flow_id = Keyword.get(opts, :flow_id, "async_flow_#{System.unique_integer([:positive])}")
+      
+      # Start monitoring for this flow
+      ErrorHandler.start_monitoring(flow_id, flow, state)
+      
+      result = try do
+        PocketFlex.Flow.run(flow, state)
+      rescue
+        error ->
+          stacktrace = __STACKTRACE__
+          ErrorHandler.report_error(error, :async_flow_execution, %{
+            flow_id: flow_id,
+            stacktrace: stacktrace
+          })
+      catch
+        kind, error ->
+          ErrorHandler.report_error(error, :caught_in_async_flow, %{
+            flow_id: flow_id,
+            kind: kind
+          })
+      end
+      
+      # Update monitoring based on result
+      case result do
+        {:ok, final_state} ->
+          ErrorHandler.complete_monitoring(flow_id, :completed, %{
+            end_time: DateTime.utc_now(),
+            result: :success
+          })
+          {:ok, final_state}
+        
+        {:error, _reason} = error ->
+          ErrorHandler.complete_monitoring(flow_id, :failed, %{
+            end_time: DateTime.utc_now(),
+            result: :error,
+            error: error
+          })
+          error
+          
+        other ->
+          error = ErrorHandler.report_error(
+            "Unexpected result format from flow execution", 
+            :invalid_flow_result, 
+            %{flow_id: flow_id, result: other}
+          )
+          ErrorHandler.complete_monitoring(flow_id, :failed, %{
+            end_time: DateTime.utc_now(),
+            result: :error,
+            error: error
+          })
+          error
+      end
+    end)
   end
 
   @doc """
@@ -31,135 +97,96 @@ defmodule PocketFlex.AsyncFlow do
   ## Parameters
     - flow: The flow to run
     - state: The initial shared state
+    - opts: Optional parameters for flow execution
     
   ## Returns
     A tuple containing either:
       * `{:ok, final_state}` - Success with the final state
       * `{:error, reason}` - Error with the reason
   """
-  @spec orchestrate_async(PocketFlex.Flow.t(), map()) :: {:ok, map()} | {:error, term()}
-  def orchestrate_async(flow, state) do
-    orchestrate_async_flow(flow, flow.start_node, state, flow.params)
-  end
-
-  @doc false
-  defp orchestrate_async_flow(_flow, nil, state, _params), do: {:ok, state}
-
-  defp orchestrate_async_flow(flow, current_node, state, params) do
-    # Set node params if the node supports it
-    current_node =
-      if function_exported?(current_node, :set_params, 1) do
-        current_node.set_params(params)
-        current_node
-      else
-        current_node
-      end
-
-    try do
-      # Run the node asynchronously if it's an AsyncNode, otherwise run it synchronously
-      result =
-        if function_exported?(current_node, :run_async, 1) do
-          Logger.debug("Running async node: #{inspect(current_node)}")
-
-          current_node.run_async(state)
-          |> Task.await(:infinity)
-        else
-          Logger.debug("Running sync node in async flow: #{inspect(current_node)}")
-          PocketFlex.NodeRunner.run_node(current_node, state)
-        end
-
-      case result do
-        {:ok, action, updated_state} ->
-          # Find next node
-          next_node = get_next_node(flow, current_node, action)
-
-          # Continue flow
-          orchestrate_async_flow(flow, next_node, updated_state, params)
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+  @spec orchestrate_async(PocketFlex.Flow.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def orchestrate_async(flow, state, opts \\ []) do
+    flow_id = Keyword.get(opts, :flow_id, "async_orchestration_#{System.unique_integer([:positive])}")
+    
+    # Start monitoring for this flow
+    ErrorHandler.start_monitoring(flow_id, flow, state)
+    
+    result = try do
+      Orchestrator.orchestrate(flow, flow.start_node, state, flow.params, flow_id)
     rescue
-      e ->
-        Logger.error("Error in async flow: #{inspect(e)}")
-        {:error, e}
+      error ->
+        stacktrace = __STACKTRACE__
+        ErrorHandler.report_error(error, :async_flow_orchestration, %{
+          flow_id: flow_id,
+          stacktrace: stacktrace
+        })
+    catch
+      kind, error ->
+        ErrorHandler.report_error(error, :caught_in_orchestration, %{
+          flow_id: flow_id,
+          kind: kind
+        })
+    end
+    
+    # Update monitoring based on result
+    case result do
+      {:ok, _final_state} = success ->
+        ErrorHandler.complete_monitoring(flow_id, :completed, %{
+          end_time: DateTime.utc_now(),
+          result: :success
+        })
+        success
+      
+      {:error, _reason} = error ->
+        ErrorHandler.complete_monitoring(flow_id, :failed, %{
+          end_time: DateTime.utc_now(),
+          result: :error,
+          error: error
+        })
+        error
     end
   end
 
-  # Helper function to get the next node in the flow
-  defp get_next_node(flow, current_node, action) do
-    action = action || "default"
-
-    case get_in(flow.connections, [current_node, action]) do
-      nil ->
-        if map_size(get_in(flow.connections, [current_node]) || %{}) > 0 do
-          Logger.warning(
-            "Flow ends: '#{action}' not found in #{inspect(Map.keys(get_in(flow.connections, [current_node])))}"
-          )
-        end
-
-        nil
-
-      next_node ->
-        next_node
-    end
-  end
+  # Flow manipulation functions
 
   @doc """
-  Creates a new async flow.
-
-  ## Returns
-    A new async flow struct
-  """
-  @spec new() :: PocketFlex.Flow.t()
-  def new do
-    PocketFlex.Flow.new()
-  end
-
-  @doc """
-  Adds a node to the async flow.
+  Adds a node to the flow.
 
   ## Parameters
-    - flow: The flow to add the node to
-    - node: The node module to add
+    - flow: The flow to modify
+    - node: The node to add
     
   ## Returns
     The updated flow
   """
   @spec add_node(PocketFlex.Flow.t(), module()) :: PocketFlex.Flow.t()
-  def add_node(flow, node) do
-    PocketFlex.Flow.add_node(flow, node)
-  end
+  defdelegate add_node(flow, node), to: PocketFlex.Flow
 
   @doc """
-  Connects two nodes in the async flow.
+  Connects two nodes in the flow.
 
   ## Parameters
-    - flow: The flow to update
-    - from: The source node module
-    - to: The target node module
-    - action: The action key for this connection (default: :default)
+    - flow: The flow to modify
+    - from: The source node
+    - to: The target node
+    - action: The action that triggers this connection (default: :default)
     
   ## Returns
     The updated flow
   """
   @spec connect(PocketFlex.Flow.t(), module(), module(), atom()) :: PocketFlex.Flow.t()
-  def connect(flow, from, to, action \\ :default) do
-    PocketFlex.Flow.connect(flow, from, to, action)
-  end
+  defdelegate connect(flow, from, to, action \\ :default), to: PocketFlex.Flow
 
   @doc """
-  Sets the starting node for the async flow.
+  Sets the start node of the flow.
 
   ## Parameters
-    - flow: The flow to update
-    - node: The node module to set as the start node
+    - flow: The flow to modify
+    - node: The node to set as the start node
     
   ## Returns
     The updated flow
   """
   @spec start(PocketFlex.Flow.t(), module()) :: PocketFlex.Flow.t()
-  def start(flow, node) do
-    PocketFlex.Flow.start(flow, node)
-  end
+  defdelegate start(flow, node), to: PocketFlex.Flow
 end
