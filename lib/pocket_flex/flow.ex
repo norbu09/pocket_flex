@@ -1,9 +1,22 @@
 defmodule PocketFlex.Flow do
   @moduledoc """
-  Manages the execution of connected nodes.
+  Defines and manages flows of connected nodes in PocketFlex.
 
-  A flow maintains a graph of connected nodes and handles the execution
-  of those nodes in sequence, passing data between them using a shared state.
+  This module provides the core structure and execution logic for flows,
+  including state management, node execution, and error handling.
+
+  ## Conventions
+
+  - All flow operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+
+  ## Best Practices
+
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - Use with statements for clean sequential operations that may fail
+  - See the guides for flow design, error handling, and migration notes
   """
 
   defstruct [:start_node, :last_connection, nodes: %{}, connections: %{}, params: %{}]
@@ -83,16 +96,20 @@ defmodule PocketFlex.Flow do
   end
 
   @doc """
-  Runs the flow with the given shared state.
+  Executes the flow with the given shared state.
 
   ## Parameters
-    - flow: The flow to run
+    - flow: The flow to execute
     - shared: The initial shared state
     
   ## Returns
-    A tuple containing:
-    - :ok and the final shared state, or
-    - :error and an error reason
+    - `{:ok, final_state}` on success
+    - `{:error, reason}` on failure
+
+  ## Example
+
+      iex> PocketFlex.Flow.run(flow, %{})
+      {:ok, %{}}
   """
   @spec run(t(), map()) :: {:ok, map()} | {:error, term()}
   def run(flow, shared) do

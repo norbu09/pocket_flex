@@ -1,9 +1,23 @@
 defmodule PocketFlex.AsyncBatchNode do
   @moduledoc """
-  Behavior module for asynchronous batch processing nodes.
+  Behavior module for asynchronous batch processing nodes in PocketFlex.
 
   Combines the functionality of AsyncNode and BatchNode to support
   asynchronous processing of lists of items.
+
+  ## Conventions
+
+  - All callbacks must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+  - Prefer using the provided macros for default implementations
+
+  ## Best Practices
+
+  - Override only the callbacks you need
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling and migration notes
   """
 
   @callback exec_item_async(item :: any()) :: {:ok, Task.t()} | {:ok, any()}
@@ -16,12 +30,20 @@ defmodule PocketFlex.AsyncBatchNode do
 
       # Default implementations for Node callbacks
       @impl PocketFlex.Node
+      @doc """
+      Prepares the shared state for async batch execution.
+      Returns the result of `prep_async/1` by default.
+      """
       def prep(state) do
         {:ok, result} = prep_async(state)
         result
       end
 
       @impl PocketFlex.Node
+      @doc """
+      Executes the node for a list of items asynchronously, calling `exec_item_async/1` for each item.
+      Waits for each task if the result is a Task struct.
+      """
       def exec(items) when is_list(items) do
         items
         |> Enum.map(fn item ->
@@ -35,6 +57,10 @@ defmodule PocketFlex.AsyncBatchNode do
         end)
       end
 
+      @doc """
+      Executes the node for a single item asynchronously.
+      Waits for the task if the result is a Task struct.
+      """
       def exec(item) do
         {:ok, result} = exec_item_async(item)
 
@@ -46,6 +72,10 @@ defmodule PocketFlex.AsyncBatchNode do
       end
 
       @impl PocketFlex.Node
+      @doc """
+      Post-processes the async batch execution result and updates the shared state.
+      Returns the result of `post_async/3` by default.
+      """
       def post(state, prep_result, exec_result) do
         {:ok, result} = post_async(state, prep_result, exec_result)
         result
@@ -53,9 +83,15 @@ defmodule PocketFlex.AsyncBatchNode do
 
       # Default implementations for AsyncNode callbacks
       @impl PocketFlex.AsyncNode
+      @doc """
+      Asynchronously prepares the shared state. Returns `{:ok, nil}` by default.
+      """
       def prep_async(_state), do: {:ok, nil}
 
       @impl PocketFlex.AsyncNode
+      @doc """
+      Executes a list of items asynchronously using Task. Override for custom behavior.
+      """
       def exec_async(items) when is_list(items) do
         task =
           Task.async(fn ->
@@ -94,10 +130,16 @@ defmodule PocketFlex.AsyncBatchNode do
       end
 
       @impl PocketFlex.AsyncNode
+      @doc """
+      Asynchronously post-processes the execution result and updates the shared state. Returns `{:ok, {:default, shared}}` by default.
+      """
       def post_async(state, _prep_res, exec_res), do: {:ok, {:default, state}}
 
       # Default implementation for AsyncBatchNode callback
       @impl PocketFlex.AsyncBatchNode
+      @doc """
+      Executes an item asynchronously. Returns a Task struct or the result directly.
+      """
       def exec_item_async(item) do
         task = Task.async(fn -> item end)
         {:ok, task}
@@ -133,23 +175,39 @@ defmodule PocketFlex.AsyncParallelBatchNode do
 
       # Default implementations for Node callbacks
       @impl PocketFlex.Node
+      @doc """
+      Prepares the shared state for async batch execution.
+      Returns the result of `prep_async/1` by default.
+      """
       def prep(state) do
         {:ok, result} = prep_async(state)
         result
       end
 
       @impl PocketFlex.Node
+      @doc """
+      Executes the node for a list of items asynchronously, calling `exec_item_async/1` for each item.
+      Waits for each task if the result is a Task struct.
+      """
       def exec(items) when is_list(items) do
         tasks = create_tasks_for_items(items)
         Task.await_many(tasks, :infinity)
       end
 
+      @doc """
+      Executes the node for a single item asynchronously.
+      Waits for the task if the result is a Task struct.
+      """
       def exec(item) do
         {:ok, result} = exec_item_async(item)
         await_result_if_task(result)
       end
 
       @impl PocketFlex.Node
+      @doc """
+      Post-processes the async batch execution result and updates the shared state.
+      Returns the result of `post_async/3` by default.
+      """
       def post(state, prep_result, exec_result) do
         {:ok, result} = post_async(state, prep_result, exec_result)
         result
@@ -157,9 +215,15 @@ defmodule PocketFlex.AsyncParallelBatchNode do
 
       # Default implementations for AsyncNode callbacks
       @impl PocketFlex.AsyncNode
+      @doc """
+      Asynchronously prepares the shared state. Returns `{:ok, nil}` by default.
+      """
       def prep_async(_state), do: {:ok, nil}
 
       @impl PocketFlex.AsyncNode
+      @doc """
+      Executes a list of items asynchronously using Task. Override for custom behavior.
+      """
       def exec_async(items) when is_list(items) do
         task =
           Task.async(fn ->
@@ -212,10 +276,16 @@ defmodule PocketFlex.AsyncParallelBatchNode do
       end
 
       @impl PocketFlex.AsyncNode
+      @doc """
+      Asynchronously post-processes the execution result and updates the shared state. Returns `{:ok, {:default, shared}}` by default.
+      """
       def post_async(state, _prep_res, exec_res), do: {:ok, {:default, state}}
 
       # Default implementation for AsyncParallelBatchNode callback
       @impl PocketFlex.AsyncParallelBatchNode
+      @doc """
+      Executes an item asynchronously. Returns a Task struct or the result directly.
+      """
       def exec_item_async(item) do
         task = Task.async(fn -> item end)
         {:ok, task}

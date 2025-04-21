@@ -1,9 +1,22 @@
 defmodule PocketFlex.AsyncParallelBatchFlow do
   @moduledoc """
-  Manages the parallel asynchronous execution of batch processing flows.
+  Manages the parallel asynchronous execution of batch processing flows in PocketFlex.
 
-  This module extends the AsyncBatchFlow with support for processing multiple items
-  in parallel. It uses Elixir's Task module to run multiple items concurrently.
+  This module extends AsyncBatchFlow with support for processing multiple items
+  in parallel using Elixir's Task module.
+
+  ## Conventions
+
+  - All operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+  - Monitoring and state storage integration
+
+  ## Best Practices
+
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling, monitoring, and migration notes
   """
 
   require Logger

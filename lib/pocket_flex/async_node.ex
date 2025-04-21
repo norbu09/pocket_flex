@@ -1,9 +1,23 @@
 defmodule PocketFlex.AsyncNode do
   @moduledoc """
-  Behavior module for asynchronous nodes.
+  Behavior module for asynchronous nodes in PocketFlex.
 
   Extends the basic Node behavior with asynchronous versions of
   the callbacks for concurrent execution.
+
+  ## Conventions
+
+  - All callbacks must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+  - Prefer using the provided macros for default implementations
+
+  ## Best Practices
+
+  - Override only the callbacks you need
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling and migration notes
   """
 
   @callback prep_async(shared :: map()) :: {:ok, any()}

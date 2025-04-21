@@ -1,9 +1,21 @@
 defmodule PocketFlex.AsyncFlow.Orchestrator do
   @moduledoc """
-  Orchestrates the execution of asynchronous flows.
+  Orchestrates the execution of asynchronous flows in PocketFlex.
 
   This module manages the flow of execution between nodes in an asynchronous flow,
-  handling state transitions and error recovery.
+  handling state transitions, error recovery, and monitoring.
+
+  ## Conventions
+
+  - All node and flow operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+
+  ## Best Practices
+
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling, monitoring, and migration notes
   """
 
   require Logger

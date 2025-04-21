@@ -73,6 +73,20 @@ PocketFlex.define(
 10. The `state_with_error_info` is passed to `ErrorHandlingNode.prep/1`.
 11. ... and so on, until a node transitions to a defined end state or has no further transitions defined.
 
+## Best Practices & Conventions
+
+- **Always use atoms** for transition/action keys (e.g., `:default`, `:success`, `:error`).
+- **All node and flow operations should return `{:ok, ...}` or `{:error, ...}` tuples** for robust error handling and clear control flow.
+- **Use the DSL** (see the DSL guide) for concise, idiomatic flow definitions.
+- **Explicitly define all possible transitions** in your flow for clarity and maintainability.
+
+## Migration Note
+
+If upgrading from older versions:
+- Update all transition keys to atoms
+- Ensure all results are tuple-based
+- Reference the DSL guide for modern flow patterns
+
 ## Key Concepts
 
 - **Atom-Based Transitions**: Using atoms (`:default`, `:error`, etc.) for transition keys is conventional and efficient in Elixir.

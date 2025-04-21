@@ -1,15 +1,23 @@
 defmodule PocketFlex.ErrorHandler do
   @moduledoc """
-  Handles errors and provides standardized error reporting for PocketFlex flows.
+  Standardizes error reporting and handling for PocketFlex flows and nodes.
 
-  This module provides:
-  - Standardized error formatting
-  - Error reporting with context
-  - Integration with monitoring and recovery systems
+  This module provides functions for logging, formatting, and propagating errors
+  with consistent structure and context across the system.
 
-  For more specialized functionality, see:
-  - `PocketFlex.Monitoring` - For flow execution monitoring
-  - `PocketFlex.Recovery` - For error recovery mechanisms
+  ## Conventions
+
+  - All error handling must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Use atoms for error reasons and control flow
+  - Include stacktraces in error metadata during development
+
+  ## Best Practices
+
+  - Use pattern matching in function heads for error handling
+  - Document all public functions and modules
+  - Provide meaningful error messages with context
+  - Use Logger for logging errors, not IO.inspect
+  - See the guides for error handling and troubleshooting
   """
 
   require Logger
@@ -17,15 +25,20 @@ defmodule PocketFlex.ErrorHandler do
   alias PocketFlex.Recovery
 
   @doc """
-  Reports an error with standardized formatting and classification.
+  Reports an error with context and metadata, logging it in a standardized format.
 
   ## Parameters
-    - error: The error that occurred
-    - context: Additional context about where the error occurred
-    - metadata: Additional metadata about the error
+    - error: The error term
+    - context: Contextual information about where the error occurred
+    - metadata: Additional metadata for the error (optional, default: `%{}`)
 
   ## Returns
     A standardized error tuple
+
+  ## Example
+
+      iex> PocketFlex.ErrorHandler.report_error(:timeout, :node_exec, %{node: :foo})
+      {:error, %{error: :timeout, context: :node_exec, timestamp: ..., metadata: %{node: :foo}}}
   """
   @spec report_error(term(), atom(), map()) :: {:error, map()}
   def report_error(error, context, metadata \\ %{}) do

@@ -63,4 +63,32 @@ state_after_node_b = %{
 - **Keep it Serializable**: If you need to persist the state or pass it between processes, ensure the values in the map are easily serializable (basic Elixir types, simple structs). Avoid storing PIDs, function references, or complex ETS tables directly in the state if persistence or distribution is needed.
 - **Structured Keys**: Use descriptive atoms or nested maps for keys to keep the state organized (e.g., `%{results: %{analysis: ...}}` instead of `%{analysis_result: ...}`).
 - **Minimize State**: Only store data in the shared state that is truly needed by subsequent nodes. Avoid cluttering it with temporary data used only within a single node.
-- **Consider Alternatives for Large Data**: For very large data (e.g., large files, embeddings), consider storing them outside the main state map (e.g., in ETS, a database, or cloud storage) and passing only references (IDs, paths) in the state map. 
+- **Consider Alternatives for Large Data**: For very large data (e.g., large files, embeddings), consider storing them outside the main state map (e.g., in ETS, a database, or cloud storage) and passing only references (IDs, paths) in the state map.
+
+## ETS-Backed Shared State
+
+PocketFlex uses a single ETS table for fast, concurrent state storage across all flows. You can configure the ETS table name in your config:
+
+```elixir
+config :pocket_flex, :state_table, :my_custom_state_table
+```
+
+- **Keep state serializable**: Only store data that can be easily serialized (no PIDs, functions, or complex references).
+- **Never overwrite shared state with a raw value**: Always update the state map, never replace it with a non-map value. The default node macros enforce this.
+- **Clean up state**: Always call `cleanup/1` after flow completion.
+
+## Error Handling
+
+All node and flow operations should return `{:ok, ...}` or `{:error, ...}` tuples. This ensures robust error propagation and makes flows easier to reason about and debug.
+
+## Best Practices
+
+- Use atoms for action keys (e.g., `:default`, `:success`, `:error`).
+- Prefer pattern matching in function heads for clarity.
+- Use the provided macros for node behaviors and override only when necessary.
+
+## Migration Note
+
+If upgrading from older versions:
+- Ensure all state operations use the tuple-based conventions
+- Review your flows for state overwrite issues

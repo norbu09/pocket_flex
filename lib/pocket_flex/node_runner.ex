@@ -1,9 +1,18 @@
 defmodule PocketFlex.NodeRunner do
   @moduledoc """
-  Handles the execution of nodes in a flow.
+  Handles the execution of nodes in a PocketFlex flow.
 
-  This module provides functionality for running nodes with error handling,
-  retry logic, and monitoring capabilities.
+  This module provides:
+  - Running nodes with tuple-based error handling (`{:ok, ...}`/`{:error, ...}`)
+  - Retry logic and monitoring integration
+  - Standardized action atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrites shared state with a raw value
+
+  ## Best Practices
+
+  - Always use atoms for actions and tuple-based results
+  - Use pattern matching in function heads
+  - See the guides for error handling, monitoring, and migration notes
   """
 
   require Logger

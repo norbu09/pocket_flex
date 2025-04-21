@@ -251,25 +251,44 @@ task = PocketFlex.run_async_parallel_batch(flow, %{"items" => ["a", "b", "c"]})
 {:ok, result} = Task.await(task)
 ```
 
-## Error Handling
+## Best Practices & Error Handling
 
-All execution models in PocketFlex now use Erlang-style error tuples for consistent error handling:
+- **Always use atoms** for actions in `post/3` (e.g., `:default`, `:success`, `:error`).
+- **Always return `{:ok, ...}` or `{:error, ...}`** from node and flow operations.
+- **Never overwrite the shared state with a raw value** in `post/3`. Use the macro-provided default or ensure your custom implementation is safe.
+- **Use pattern matching in function heads** for clarity and safety.
+- **Prefer the provided macros** for node implementations, overriding only as needed.
+
+### Error Handling Example
 
 ```elixir
-# Success case
-{:ok, result} = Task.await(task)
+defmodule MyApp.Nodes.SafeNode do
+  use PocketFlex.NodeMacros
 
-# Error handling
-case Task.await(task) do
-  {:ok, result} ->
-    # Process successful result
-    IO.puts("Success: #{inspect(result)}")
-    
-  {:error, reason} ->
-    # Handle error
-    Logger.error("Flow failed: #{inspect(reason)}")
+  @impl true
+  def exec(input) do
+    if input == "fail" do
+      raise "Simulated error"
+    else
+      input
+    end
+  end
+
+  @impl true
+  def post(shared, _prep, exec_res) do
+    {:default, Map.put(shared, :result, exec_res)}
+  rescue
+    e -> {:error, Map.put(shared, :error, Exception.message(e))}
+  end
 end
 ```
+
+## Migration Note
+
+If upgrading from older versions, update all nodes to:
+- Use atoms for actions
+- Use tuple-based results
+- Avoid overwriting shared state
 
 ## Choosing the Right Execution Model
 

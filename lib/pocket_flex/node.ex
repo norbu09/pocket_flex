@@ -3,12 +3,22 @@ defmodule PocketFlex.Node do
   Behavior module defining the interface for PocketFlex nodes.
 
   A node is a processing unit that can:
-  - Prepare data from the shared state (prep)
-  - Execute some logic on that data (exec)
-  - Post-process the results and update the shared state (post)
+  - Prepare data from the shared state (`prep/1`)
+  - Execute logic on that data (`exec/1`)
+  - Post-process the results and update the shared state (`post/3`)
 
-  Nodes can be connected to form a flow, with each node determining
-  which node should execute next based on its output.
+  ## Conventions
+
+  - All node and flow operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`.
+  - Actions returned from `post/3` must always be atoms (e.g., `:default`, `:success`, `:error`).
+  - Never overwrite the shared state with a raw value in `post/3`—always return `{action_atom, updated_state}`.
+  - Prefer using the macros in `PocketFlex.NodeMacros` for default implementations.
+
+  ## Best Practices
+
+  - Use pattern matching in function heads.
+  - Document all public functions and modules.
+  - See the guides for migration and error handling details.
   """
 
   @doc """

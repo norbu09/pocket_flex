@@ -102,6 +102,27 @@ flow =
   ])
 ```
 
+## Best Practices & Conventions
+
+- **Always use atoms** for actions in `post/3` (e.g., `:default`, `:success`, `:error`).
+- **Always return `{:ok, ...}` or `{:error, ...}`** from node and flow operations.
+- **Never overwrite the shared state with a raw value** in `post/3`. The default macro implementation ensures this, but custom implementations must also.
+- **Use the provided macros** for default node behaviors, overriding only when necessary.
+- **Prefer pattern matching in function heads** over conditionals.
+- **Use property-based tests** (StreamData) for complex data structures.
+- **See the main README and guides** for more on error handling, state storage, and configuration.
+
+## Error Handling in Flows
+
+PocketFlex expects all node and flow operations to use the `{:ok, ...}`/`{:error, ...}` tuple convention. Actions in `post/3` should always be atoms. If you return a non-map value, the shared state will be preserved and not overwritten. This prevents accidental state loss and ensures robust flows.
+
+## Migration Note
+
+If upgrading from older versions, ensure all your nodes:
+- Use atoms for actions (not strings)
+- Use `{:ok, ...}`/`{:error, ...}` tuples for flow results
+- Update any custom `post/3` implementations to avoid overwriting the shared state
+
 ## Complete Example
 
 Here's a complete example that demonstrates the various DSL features:
@@ -143,18 +164,6 @@ defmodule MyApp.Flow do
   end
 end
 ```
-
-## Best Practices
-
-1. **Use Descriptive Action Atoms**: Choose action atoms that clearly describe the condition or reason for taking that path (e.g., `:success`, `:error`, `:invalid`).
-
-2. **Group Related Connections**: When defining complex flows, group related connections together for better readability.
-
-3. **Use Helper Functions for Common Patterns**: Leverage the helper functions like `linear_flow` and `with_error_handling` to avoid repetitive connection definitions.
-
-4. **Visualize Your Flow**: Before implementing, sketch out your flow to better understand the node connections and transitions.
-
-5. **Test Each Path**: Make sure to test all possible paths through your flow, especially conditional branches.
 
 ## Advanced Usage
 

@@ -1,34 +1,43 @@
 defmodule PocketFlex.Monitoring do
   @moduledoc """
-  Provides monitoring capabilities for PocketFlex flows.
+  Provides monitoring capabilities for PocketFlex flows and nodes.
 
-  This module handles tracking and reporting on flow execution, including:
-  - Starting monitoring for a flow
-  - Updating monitoring state during execution
-  - Recording errors that occur during flow execution
-  - Completing monitoring when a flow finishes
-  - Retrieving monitoring information
-  - Cleaning up monitoring data
+  This module enables tracking of flow execution, node actions, and state transitions
+  for observability, debugging, and metrics collection.
 
-  ## Telemetry Integration
+  ## Conventions
 
-  This module is designed to be extended with telemetry integration in the future.
-  Each monitoring function will emit telemetry events that can be consumed by
-  telemetry handlers.
+  - All monitoring operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions and event types must always be atoms (e.g., `:start`, `:success`, `:error`)
+  - Monitoring should not mutate flow or node state
+
+  ## Best Practices
+
+  - Use pattern matching in function heads for event handling
+  - Document all public functions and modules
+  - Include context and metadata in all monitoring events
+  - Use Logger for logging, not IO.inspect
+  - See the guides for monitoring and observability integration
   """
 
   require Logger
 
   @doc """
-  Starts monitoring a flow execution.
+  Initializes monitoring for a flow execution.
 
   ## Parameters
-    - flow_id: The ID of the flow to monitor
-    - flow: The flow being executed
-    - initial_state: The initial state of the flow
+    - flow_id: The unique identifier for the flow
+    - flow: The flow definition
+    - initial_state: The initial shared state
 
   ## Returns
-    - `:ok`
+    - :ok on success
+    - {:error, reason} on failure
+
+  ## Example
+
+      iex> PocketFlex.Monitoring.start_monitoring("my_flow_id", flow, %{})
+      :ok
   """
   @spec start_monitoring(String.t(), PocketFlex.Flow.t(), map()) :: :ok
   def start_monitoring(flow_id, flow, initial_state) do
@@ -42,7 +51,7 @@ defmodule PocketFlex.Monitoring do
 
     Logger.metadata(flow_id: flow_id)
 
-    Logger.info("Starting flow execution", metadata: metadata)
+    Logger.info("Starting flow execution", flow_id: flow_id, flow: flow, initial_state: initial_state)
 
     # Store monitoring data
     PocketFlex.StateStorage.update_state(
@@ -78,7 +87,7 @@ defmodule PocketFlex.Monitoring do
     - metadata: Additional metadata to store
 
   ## Returns
-    - `:ok`
+    - :ok
   """
   @spec update_monitoring(String.t(), module(), atom(), map()) :: :ok
   def update_monitoring(flow_id, current_node, status, metadata \\ %{}) do
@@ -86,7 +95,7 @@ defmodule PocketFlex.Monitoring do
 
     case PocketFlex.StateStorage.get_state(monitor_id) do
       %{} = monitor_state ->
-        execution_path = [current_node | Map.get(monitor_state, :execution_path, [])]
+        execution_path = Map.get(monitor_state, :execution_path, []) ++ [current_node]
 
         updated_state =
           monitor_state
@@ -94,7 +103,7 @@ defmodule PocketFlex.Monitoring do
           |> Map.put(:status, status)
           |> Map.put(:execution_path, execution_path)
           |> Map.put(:last_updated, DateTime.utc_now())
-          |> Map.update(:metadata, metadata, &Map.merge(&1, metadata))
+          |> Map.put(:metadata, metadata)
 
         PocketFlex.StateStorage.update_state(monitor_id, updated_state)
 
@@ -122,17 +131,16 @@ defmodule PocketFlex.Monitoring do
     - metadata: Additional metadata about the error
 
   ## Returns
-    - `:ok`
+    - :ok
   """
   @spec record_error(String.t(), term(), module(), map()) :: :ok
-  def record_error(flow_id, error, node, metadata \\ %{}) do
+  def record_error(flow_id, error, node, _metadata \\ %{}) do
     monitor_id = "monitor_#{flow_id}"
 
     error_entry = %{
       error: error,
       node: node,
-      timestamp: DateTime.utc_now(),
-      metadata: metadata
+      timestamp: DateTime.utc_now()
     }
 
     case PocketFlex.StateStorage.get_state(monitor_id) do
@@ -162,6 +170,50 @@ defmodule PocketFlex.Monitoring do
   end
 
   @doc """
+  Records a monitoring event for a node or flow.
+
+  ## Parameters
+    - flow_id: The unique identifier for the flow
+    - event: The event type (atom)
+    - metadata: Additional metadata for the event (map)
+
+  ## Returns
+    - :ok on success
+    - {:error, reason} on failure
+
+  ## Example
+
+      iex> PocketFlex.Monitoring.record_event("my_flow_id", :node_started, %{node: :foo})
+      :ok
+  """
+  @spec record_event(String.t(), atom(), map()) :: :ok
+  def record_event(flow_id, event, metadata \\ %{}) do
+    monitor_id = "monitor_#{flow_id}"
+
+    case PocketFlex.StateStorage.get_state(monitor_id) do
+      %{} = monitor_state ->
+        event_entry = %{
+          event: event,
+          timestamp: DateTime.utc_now(),
+          metadata: metadata
+        }
+
+        updated_state =
+          monitor_state
+          |> Map.put(:last_event, event_entry)
+          |> Map.update(:events, [event_entry], &[event_entry | &1])
+
+        PocketFlex.StateStorage.update_state(monitor_id, updated_state)
+
+        :ok
+
+      _ ->
+        Logger.warning("Attempted to record event for unknown flow: #{flow_id}")
+        {:error, :unknown_flow}
+    end
+  end
+
+  @doc """
   Completes monitoring for a flow execution.
 
   ## Parameters
@@ -170,7 +222,7 @@ defmodule PocketFlex.Monitoring do
     - result: The result of the flow execution
 
   ## Returns
-    - `:ok`
+    - :ok
   """
   @spec complete_monitoring(String.t(), atom(), map()) :: :ok
   def complete_monitoring(flow_id, status, result) do
@@ -191,20 +243,13 @@ defmodule PocketFlex.Monitoring do
 
         PocketFlex.StateStorage.update_state(monitor_id, updated_state)
 
-        metadata = %{
-          flow_id: flow_id,
-          status: status,
-          duration_ms: duration,
-          error_count: length(Map.get(monitor_state, :errors, []))
-        }
-
-        Logger.info("Flow execution completed", metadata: metadata)
+        Logger.info("Flow execution completed", flow_id: flow_id, result: result)
 
       # Future telemetry integration point
       # :telemetry.execute(
       #   [:pocket_flex, :flow, :complete],
       #   %{system_time: System.system_time(), duration: duration},
-      #   metadata
+      #   %{flow_id: flow_id, status: status, result: result}
       # )
 
       _ ->
@@ -237,7 +282,7 @@ defmodule PocketFlex.Monitoring do
     - flow_id: The ID of the flow to clean up monitoring data for
 
   ## Returns
-    - `:ok`
+    - :ok
   """
   @spec cleanup_monitoring(String.t()) :: :ok
   def cleanup_monitoring(flow_id) do

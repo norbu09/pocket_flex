@@ -1,9 +1,19 @@
 defmodule PocketFlex.AsyncBatchFlow do
   @moduledoc """
-  Manages the asynchronous execution of batch processing flows.
+  Manages the asynchronous execution of batch processing flows in PocketFlex.
 
-  This module provides functionality for running flows asynchronously with batch processing
-  capabilities. It handles the execution of nodes that can process multiple items in a batch.
+  This module provides:
+  - Running flows asynchronously with batch processing capabilities
+  - Tuple-based error handling (`{:ok, ...}`/`{:error, ...}`) for all operations
+  - Atoms for all action keys (e.g., `:default`, `:success`, `:error`)
+  - Never overwrites shared state with a raw value
+  - Monitoring and state storage integration
+
+  ## Best Practices
+
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling, monitoring, and migration notes
   """
 
   require Logger

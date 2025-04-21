@@ -1,19 +1,22 @@
 defmodule PocketFlex.AsyncFlow do
   @moduledoc """
-  Manages the asynchronous execution of connected nodes.
+  Manages the asynchronous execution of connected nodes in PocketFlex flows.
 
   Extends the basic Flow module with support for asynchronous
   execution using Elixir processes.
 
-  This module provides:
-  - Running flows asynchronously with Task
-  - Orchestrating flows with async nodes
-  - Monitoring flow execution
-  - Error handling for async operations
+  ## Conventions
 
-  For implementation details, see:
-  - `PocketFlex.AsyncFlow.Executor` - Handles execution of individual nodes
-  - `PocketFlex.AsyncFlow.Orchestrator` - Manages flow between nodes
+  - All node and flow operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+  - Prefer using the DSL for flow construction and connection
+
+  ## Best Practices
+
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling, monitoring, and migration notes
   """
 
   require Logger

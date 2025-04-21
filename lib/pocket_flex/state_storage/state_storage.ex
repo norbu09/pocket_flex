@@ -1,19 +1,19 @@
 defmodule PocketFlex.StateStorage do
   @moduledoc """
-  Behavior for state storage implementations.
+  Behavior for state storage implementations in PocketFlex.
 
-  This module defines the behavior that all state storage implementations
-  must follow. It provides a common interface for getting, updating, and cleaning up state.
+  This module defines the required interface for any state storage backend.
+  It ensures:
+  - Tuple-based error handling (`{:ok, ...}`/`{:error, ...}`) for all operations
+  - Never overwrite shared state with a raw value; always update the state map
+  - Support for concurrent, efficient, and flexible storage
 
-  ## State Storage Design
+  ## Best Practices
 
-  PocketFlex uses a shared state storage system to maintain flow state across nodes.
-  The state storage system is designed to be:
-
-  * **Simple**: A straightforward API with just a few essential functions
-  * **Efficient**: Optimized for performance with minimal overhead
-  * **Flexible**: Supports multiple storage backends through a common interface
-  * **Concurrent**: Handles multiple flows running simultaneously
+  - Use only serializable data in state (no PIDs, functions, or references)
+  - Always call `cleanup/1` after flow completion
+  - Document all public functions and modules
+  - See the guides for error handling, configuration, and migration notes
 
   ## Usage
 
@@ -36,7 +36,7 @@ defmodule PocketFlex.StateStorage do
   ## Implementing a Custom State Storage Backend
 
   To implement a custom state storage backend, create a module that implements
-  the `PocketFlex.StateStorage` behavior:
+  the `PocketFlex.StateStorage` behavior and follows the conventions above.
 
   ```elixir
   defmodule MyApp.CustomStateStorage do

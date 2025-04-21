@@ -1,38 +1,19 @@
 defmodule PocketFlex.StateStorage.ETS do
   @moduledoc """
-  ETS-based implementation of the StateStorage behavior using a single shared table.
+  ETS-based implementation of the StateStorage behavior using a single shared table for PocketFlex.
 
-  This module provides an implementation of the StateStorage behavior
-  using a single Erlang Term Storage (ETS) table for storing all flow states.
-  Each flow's state is stored as a separate entry in the table, indexed by flow_id.
+  This module provides:
+  - High-performance, concurrent state storage for all flows using ETS
+  - Tuple-based error handling (`{:ok, ...}`/`{:error, ...}`) for all operations
+  - Never overwrites shared state with a raw value; always updates the state map
+  - Configuration of ETS table name via application config
 
-  ## Design
+  ## Best Practices
 
-  The implementation uses a GenServer to manage the ETS table, providing:
-
-  * **Concurrency**: The ETS table is created with public access, allowing concurrent reads
-  * **Safety**: All write operations are performed through the GenServer for consistency
-  * **Simplicity**: A single table stores all flow states, reducing complexity
-  * **Performance**: Direct ETS lookups for read operations provide excellent performance
-
-  ## Usage
-
-  This module is used automatically when configured as the state storage backend:
-
-  ```elixir
-  # In your config/config.exs (this is the default)
-  config :pocket_flex, :state_storage, PocketFlex.StateStorage.ETS
-  ```
-
-  The module is started automatically by the PocketFlex application supervisor.
-
-  ## Implementation Details
-
-  * The ETS table is named `:pocket_flex_shared_state` by default
-  * Each entry in the table is a tuple of `{flow_id, state}`
-  * The table is created with the `:set` type, ensuring unique flow_ids
-  * The table is created with `:public` access, allowing concurrent reads
-  * All write operations are performed through the GenServer for consistency
+  - Use only serializable data in state (no PIDs, functions, or references)
+  - Always call `cleanup/1` after flow completion
+  - Document all public functions and modules
+  - See the guides for error handling, configuration, and migration notes
   """
 
   @behaviour PocketFlex.StateStorage

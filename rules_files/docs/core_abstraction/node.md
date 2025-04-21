@@ -74,6 +74,22 @@ defmodule MyProject.Nodes.AddValueNode do
 end
 ```
 
+## Best Practices & Conventions
+
+- **Always use atoms** for actions in `post/3` (e.g., `:default`, `:success`, `:error`).
+- **Always return `{action_atom, updated_state}`** from `post/3` (never overwrite the shared state with a raw value).
+- **All node and flow operations should return `{:ok, ...}` or `{:error, ...}` tuples** for robust error handling.
+- **Use the provided macros** for default node behaviors; override only when necessary.
+- **Prefer pattern matching in function heads** for clarity and safety.
+- **Update custom `post/3` implementations** to avoid state overwrite and ensure action is always an atom.
+
+## Migration Note
+
+If upgrading from older versions:
+- Use atoms for actions (not strings)
+- Ensure all node and flow results use tuple-based conventions
+- Review and update any custom `post/3` implementations
+
 ## Node Types
 
 PocketFlex might define different node types or allow customization:

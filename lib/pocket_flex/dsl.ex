@@ -1,9 +1,22 @@
 defmodule PocketFlex.DSL do
   @moduledoc """
-  Provides a domain-specific language for connecting nodes.
+  Provides a domain-specific language (DSL) for connecting nodes in PocketFlex flows.
 
   This module defines operators and functions that make it
-  easier to create and connect nodes in a flow.
+  easier to create and connect nodes in a flow using concise, idiomatic syntax.
+
+  ## Conventions
+
+  - All action/transition keys must be atoms (e.g., `:default`, `:success`, `:error`).
+  - Prefer using the DSL for flow construction and connection.
+  - All node and flow operations should use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`.
+
+  ## Best Practices
+
+  - Use the provided operators (`>>>`, `~>`, etc.) for clarity.
+  - Group related connections for readability.
+  - Document all DSL usage in your flows.
+  - See the guides for migration and error handling details.
 
   ## Examples
 

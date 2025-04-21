@@ -2,14 +2,23 @@
 
 PocketFlex is an Elixir implementation of the PocketFlow agent framework. It provides a flexible system for creating flows of connected nodes, where each node performs a specific task and passes data to the next node.
 
+## What's New (2025-04)
+
+- **Robust Error Handling:** All node and flow operations now use `{:ok, result}`/`{:error, reason}` tuples and atoms for control flow (e.g., `:default`, `:success`, `:error`).
+- **Improved Node Post-processing:** The default `post/3` now ensures the shared state is never overwritten by a raw value. Always return `{action_atom, updated_state}`.
+- **ETS-backed State Storage:** All flow state is managed in a single ETS table for performance and concurrency. Configurable via `config :pocket_flex, :state_table, ...`.
+- **Test and Documentation Conventions:** All new code is tested with ExUnit, uses property-based tests for complex structures (via StreamData), and includes doctests and module docs.
+
 ## Features
 
-- **Simple Node API**: Define nodes with prep, exec, and post lifecycle methods
-- **Flexible Flow Control**: Connect nodes with conditional branching
+- **Simple Node API**: Define nodes with `prep`, `exec`, and `post` lifecycle methods
+- **Flexible Flow Control**: Connect nodes with conditional branching using atoms for actions
 - **Concurrency Support**: Run flows asynchronously using Elixir processes
 - **Batch Processing**: Process lists of items sequentially or in parallel
 - **Clean DSL**: Create flows with an intuitive syntax
 - **Retry Logic**: Built-in support for retrying failed operations
+- **Robust Error Handling**: Standardized error tuples and action atoms
+- **Configurable State Storage**: ETS-backed with custom table name
 
 ## Installation
 
@@ -28,38 +37,41 @@ end
 ### Defining Nodes
 
 ```elixir
+# Always use atoms for actions and ok/error tuples for results
+
 defmodule MyApp.Nodes.GetQuestionNode do
   use PocketFlex.NodeMacros
-  
+  @moduledoc """Gets a question from the user and puts it in the shared state."""
+
   @impl true
-  def exec(_) do
-    IO.gets("Enter your question: ")
-    |> String.trim()
+  def exec(_shared) do
+    IO.gets("Enter your question: ") |> String.trim()
   end
-  
+
   @impl true
   def post(shared, _prep_res, exec_res) do
-    {"default", Map.put(shared, "question", exec_res)}
+    {:default, Map.put(shared, :question, exec_res)}
   end
 end
 
 defmodule MyApp.Nodes.AnswerNode do
   use PocketFlex.NodeMacros
-  
+  @moduledoc """Answers the user's question."""
+
   @impl true
   def prep(shared) do
-    Map.get(shared, "question")
+    Map.get(shared, :question)
   end
-  
+
   @impl true
   def exec(question) do
     # Process the question and generate an answer
     "The answer to '#{question}' is 42."
   end
-  
+
   @impl true
   def post(shared, _prep_res, exec_res) do
-    {nil, Map.put(shared, "answer", exec_res)}
+    {:default, Map.put(shared, :answer, exec_res)}
   end
 end
 ```
@@ -69,18 +81,12 @@ end
 ```elixir
 defmodule MyApp.Flows.QAFlow do
   import PocketFlex.DSL
-  
+
   def create do
-    # Create node references
     get_question = MyApp.Nodes.GetQuestionNode
     answer = MyApp.Nodes.AnswerNode
-    
-    # Define connections
-    connections = [
-      get_question >>> answer
-    ]
-    
-    # Create and configure the flow
+    connections = [get_question >>> answer]
+
     PocketFlex.Flow.new()
     |> PocketFlex.Flow.add_node(get_question)
     |> PocketFlex.Flow.add_node(answer)
@@ -93,15 +99,10 @@ end
 ### Running a Flow
 
 ```elixir
-# Create the flow
 flow = MyApp.Flows.QAFlow.create()
-
-# Run the flow with an initial shared state
 {:ok, result} = PocketFlex.run(flow, %{})
-
-# Access the results
-IO.puts("Question: #{result["question"]}")
-IO.puts("Answer: #{result["answer"]}")
+IO.puts("Question: #{result[:question]}")
+IO.puts("Answer: #{result[:answer]}")
 ```
 
 ## Advanced Features
@@ -111,11 +112,16 @@ IO.puts("Answer: #{result["answer"]}")
 ```elixir
 defmodule MyApp.Nodes.AsyncNode do
   use PocketFlex.AsyncNode
-  
-  @impl PocketFlex.AsyncNode
+  @moduledoc """An example async node."""
+
+  @impl true
   def exec_async(input) do
-    # Perform async operation
-    {:ok, String.upcase(input)}
+    Task.async(fn -> String.upcase(input) end)
+  end
+
+  @impl true
+  def post_async(shared, _prep_res, exec_res) do
+    {:default, Map.put(shared, :async_result, exec_res)}
   end
 end
 
@@ -128,18 +134,17 @@ end
 ```elixir
 defmodule MyApp.Nodes.BatchNode do
   use PocketFlex.BatchNode
-  
-  @impl PocketFlex.BatchNode
+  @moduledoc """Processes a batch of items."""
+
+  @impl true
   def exec_item(item) do
-    # Process a single item
     String.upcase(item)
   end
 end
 
 # Run a flow with batch processing
 {:ok, result} = PocketFlex.run_batch(flow, %{})
-
-# Run a flow with parallel batch processing
+# Or parallel batch processing
 {:ok, result} = PocketFlex.run_parallel_batch(flow, %{})
 ```
 
@@ -148,87 +153,51 @@ end
 ```elixir
 defmodule MyApp.Nodes.BranchingNode do
   use PocketFlex.NodeMacros
-  
+  @moduledoc """Branches based on exec result validity."""
+
   @impl true
   def exec(input) do
-    # Some logic
-    result = process(input)
-    
-    # Return the result
-    result
+    %{valid?: input == "ok", value: input}
   end
-  
+
   @impl true
   def post(shared, _prep_res, exec_res) do
-    # Determine the next action based on the result
-    action = if exec_res.valid?, do: "success", else: "error"
-    
-    # Return the action and updated shared state
-    {action, Map.put(shared, "result", exec_res)}
-  end
-  
-  defp process(input) do
-    # Implementation
+    action = if exec_res.valid?, do: :success, else: :error
+    {action, Map.put(shared, :result, exec_res)}
   end
 end
 
 # Connect nodes with conditional branching
 connections = [
   node1 >>> node2,
-  {node2, "success"} >>> success_node,
-  {node2, "error"} >>> error_node
+  {node2, :success} >>> success_node,
+  {node2, :error} >>> error_node
 ]
 ```
 
-## Implementation Details
+## Error Handling and Best Practices
 
-PocketFlex is an Elixir implementation of the PocketFlow agent framework, focusing on creating a flexible system for building flows of connected nodes.
+- Always use atoms for actions in `post/3` (e.g., `:default`, `:success`, `:error`).
+- Always return `{:ok, ...}` or `{:error, ...}` from node and flow operations.
+- Never overwrite the shared state with a raw value in `post/3`.
+- Use the provided macros for default behaviors, override only when needed.
+- Use property-based tests (StreamData) for complex data.
+- Use ExUnit's `setup` for common test setup.
+- Use Mox for mocking dependencies in tests.
+- See the guides for advanced DSL, execution models, and state storage configuration.
 
-### Current Implementation
+## Configuration
 
-- **Node System**
-  - `PocketFlex.Node`: Behavior module for defining nodes with lifecycle methods (prep, exec, post)
-  - `PocketFlex.NodeMacros`: Macros for simplifying node implementation with default implementations
-  - Internal node execution system with retry logic and error handling
+You can configure the ETS table name for state storage in your config:
 
-- **Flow Management**
-  - `PocketFlex.Flow`: Manages node connections and flow execution
-  - `PocketFlex.DSL`: Provides a clean syntax for connecting nodes
-
-- **Batch Processing**
-  - `PocketFlex.BatchNode`: For processing lists of items
-  - `PocketFlex.ParallelBatchNode`: For parallel processing of lists
-  - `PocketFlex.BatchFlow`: For batch processing in flows
-  - `PocketFlex.ParallelBatchFlow`: For parallel batch processing in flows
-
-- **Async Execution**
-  - `PocketFlex.AsyncNode`: For asynchronous node execution
-
-### Planned Enhancements
-
-- **AsyncBatchNode Implementation**
-  - Create `PocketFlex.AsyncBatchNode` that combines AsyncNode and BatchNode functionality
-  - Create `PocketFlex.AsyncParallelBatchNode` for parallel asynchronous batch processing
-
-- **AsyncFlow Enhancement**
-  - Improve `PocketFlex.AsyncFlow` for better handling of asynchronous execution
-  - Add support for async orchestration of flows
-
-- **DSL Refinement**
-  - Make the DSL more expressive and intuitive for connecting nodes
-  - Add operators for conditional transitions
-
-- **Examples**
-  - Create example implementations to demonstrate different use cases
-  - Add examples for async and batch processing
-
-- **Documentation**
-  - Add comprehensive documentation for all modules and functions
-  - Include usage examples and best practices
+```elixir
+config :pocket_flex, :state_table, :my_custom_state_table
+```
 
 ## Documentation
 
-Complete documentation is available at [https://hexdocs.pm/pocket_flex](https://hexdocs.pm/pocket_flex).
+- Full API docs: https://hexdocs.pm/pocket_flex/
+- Guides: `guides/` directory for DSL, execution, and state storage
 
 ## License
 

@@ -1,9 +1,21 @@
 defmodule PocketFlex.AsyncFlow.Executor do
   @moduledoc """
-  Handles the execution of asynchronous nodes within a flow.
+  Handles the execution of asynchronous nodes within a PocketFlex flow.
 
   This module provides functionality for executing individual nodes
   asynchronously and handling their results.
+
+  ## Conventions
+
+  - All node and flow operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Actions must always be atoms (e.g., `:default`, `:success`, `:error`)
+  - Never overwrite the shared state with a raw value
+
+  ## Best Practices
+
+  - Use pattern matching in function heads
+  - Document all public functions and modules
+  - See the guides for error handling and migration notes
   """
 
   require Logger

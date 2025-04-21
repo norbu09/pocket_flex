@@ -141,6 +141,29 @@ Then configure PocketFlex to use your custom storage backend:
 config :pocket_flex, :state_storage, MyApp.CustomStateStorage
 ```
 
+## ETS-Backed State Storage & Configuration
+
+PocketFlex uses a single ETS table for fast, concurrent state storage. You can configure the table name in your config:
+
+```elixir
+config :pocket_flex, :state_table, :my_custom_state_table
+```
+
+- **Keep state serializable**: Only store data that can be easily serialized (no PIDs, functions, or complex references).
+- **Never overwrite shared state with a raw value**: Always update the state map, never replace it with a non-map value.
+- **Clean up state**: Always call `cleanup/1` after flow completion.
+
+## Error Handling in State Storage
+
+State storage operations should always return `{:ok, ...}` or `{:error, ...}`. Handle errors gracefully and log them for debugging.
+
+## Migration Note
+
+If upgrading from older versions:
+- Ensure all state operations use the new API
+- Update any custom state backends to follow the tuple-based conventions
+- Review your flows for state overwrite issues
+
 ## Best Practices
 
 1. **Always clean up state**: Use `cleanup/1` when a flow completes to prevent memory leaks

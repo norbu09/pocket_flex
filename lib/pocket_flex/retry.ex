@@ -1,20 +1,33 @@
 defmodule PocketFlex.Retry do
   @moduledoc """
-  Provides retry functionality for operations that may fail temporarily.
+  Provides retry logic for operations that may fail temporarily in PocketFlex.
 
-  This module implements various retry strategies including:
-  - Simple retry with a fixed number of attempts
-  - Exponential backoff retry
-  - Circuit breaker pattern for failing fast when a service is down
+  This module implements configurable retry strategies for robust error recovery
+  when interacting with unreliable resources or performing actions that may fail
+  intermittently.
+
+  ## Conventions
+
+  - All retryable operations must use tuple-based error handling: `{:ok, ...}` or `{:error, ...}`
+  - Use atoms for error reasons and control flow
+  - Never rescue exceptions for control flow; only for truly exceptional cases
+
+  ## Best Practices
+
+  - Use pattern matching in function heads for retry logic
+  - Document all public functions and modules
+  - Use exponential backoff or custom strategies for retries
+  - Provide meaningful error messages with context
+  - See the guides for error handling and retry patterns
   """
 
   require Logger
 
   @doc """
-  Retries a function with configurable retry options.
+  Retries a zero-arity function according to the provided options.
 
   ## Parameters
-    - function: The function to retry (arity 0)
+    - function: The function to be retried (zero-arity)
     - opts: Options for retrying
       - :max_retries - Maximum number of retries (default: 3)
       - :base_delay - Base delay in milliseconds (default: 100)
@@ -23,7 +36,8 @@ defmodule PocketFlex.Retry do
       - :retry_on - Function that takes an error and returns true if it should be retried (default: retry all)
 
   ## Returns
-    The result of the function if successful, or {:error, reason} after all retries fail
+    - `{:ok, result}` on success
+    - `{:error, reason}` after exhausting retries or on fatal failure
 
   ## Examples
 

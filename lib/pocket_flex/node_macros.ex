@@ -1,9 +1,20 @@
 defmodule PocketFlex.NodeMacros do
   @moduledoc """
-  Provides macros for simplifying node implementation.
+  Provides macros for simplifying node implementation in PocketFlex.
 
   This module allows developers to create nodes with minimal boilerplate
-  by providing default implementations for optional callbacks.
+  by providing default implementations for optional callbacks. It enforces:
+
+  - Atoms for action keys in `post/3` (e.g., `:default`, `:success`, `:error`).
+  - Tuple-based error handling (`{:ok, ...}`/`{:error, ...}`) for all node and flow operations.
+  - Never overwriting the shared state with a raw value in `post/3`.
+  - Customization of retry and wait logic via options.
+
+  ## Best Practices
+
+  - Override only the callbacks you need.
+  - Use pattern matching in function heads.
+  - See the main docs and guides for error handling and migration notes.
   """
 
   defmacro __using__(opts) do
