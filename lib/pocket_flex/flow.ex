@@ -1,23 +1,24 @@
 defmodule PocketFlex.Flow do
   @moduledoc """
   Manages the execution of connected nodes.
-  
+
   A flow maintains a graph of connected nodes and handles the execution
   of those nodes in sequence, passing data between them using a shared state.
   """
-  
-  defstruct [:start_node, nodes: %{}, connections: %{}, params: %{}]
-  
+
+  defstruct [:start_node, :last_connection, nodes: %{}, connections: %{}, params: %{}]
+
   @type t :: %__MODULE__{
-    start_node: module(),
-    nodes: %{optional(module()) => struct()},
-    connections: %{optional(module()) => %{optional(String.t()) => module()}},
-    params: map()
-  }
-  
+          start_node: module(),
+          last_connection: {module(), module(), atom()} | nil,
+          nodes: %{optional(module()) => struct()},
+          connections: %{optional(module()) => %{optional(atom()) => module()}},
+          params: map()
+        }
+
   @doc """
   Creates a new flow.
-  
+
   ## Returns
     A new flow struct
   """
@@ -25,10 +26,10 @@ defmodule PocketFlex.Flow do
   def new do
     %__MODULE__{}
   end
-  
+
   @doc """
   Adds a node to the flow.
-  
+
   ## Parameters
     - flow: The flow to add the node to
     - node: The node module to add
@@ -40,34 +41,35 @@ defmodule PocketFlex.Flow do
   def add_node(flow, node) do
     %{flow | nodes: Map.put(flow.nodes, node, %{})}
   end
-  
+
   @doc """
   Connects two nodes in the flow.
-  
+
   ## Parameters
     - flow: The flow to update
     - from: The source node module
     - to: The target node module
-    - action: The action key for this connection (default: "default")
+    - action: The action key for this connection (default: :default)
     
   ## Returns
     The updated flow
   """
-  @spec connect(t(), module(), module(), String.t()) :: t()
-  def connect(flow, from, to, action \\ "default") do
-    connections = Map.update(
-      flow.connections,
-      from,
-      %{action => to},
-      &Map.put(&1, action, to)
-    )
-    
-    %{flow | connections: connections}
+  @spec connect(t(), module(), module(), atom()) :: t()
+  def connect(flow, from, to, action \\ :default) do
+    connections =
+      Map.update(
+        flow.connections,
+        from,
+        %{action => to},
+        &Map.put(&1, action, to)
+      )
+
+    %{flow | connections: connections, last_connection: {from, to, action}}
   end
-  
+
   @doc """
   Sets the starting node for the flow.
-  
+
   ## Parameters
     - flow: The flow to update
     - node: The node module to set as the start node
@@ -79,10 +81,10 @@ defmodule PocketFlex.Flow do
   def start(flow, node) do
     %{flow | start_node: node}
   end
-  
+
   @doc """
   Runs the flow with the given shared state.
-  
+
   ## Parameters
     - flow: The flow to run
     - shared: The initial shared state
@@ -96,45 +98,54 @@ defmodule PocketFlex.Flow do
   def run(flow, shared) do
     run_flow(flow, flow.start_node, shared, flow.params)
   end
-  
+
   @doc false
   defp run_flow(_flow, nil, shared, _params), do: {:ok, shared}
-  
+
   defp run_flow(flow, current_node, shared, params) do
     # Set node params if the node supports it
-    current_node = if function_exported?(current_node, :set_params, 1) do
-      current_node.set_params(params)
-      current_node
-    else
-      current_node
-    end
-    
+    current_node =
+      if function_exported?(current_node, :set_params, 1) do
+        current_node.set_params(params)
+        current_node
+      else
+        current_node
+      end
+
     case PocketFlex.NodeRunner.run_node(current_node, shared) do
       {:ok, action, updated_shared} ->
         # Find next node
         next_node = get_next_node(flow, current_node, action)
-        
+
         # Continue flow
         run_flow(flow, next_node, updated_shared, params)
-        
+
       {:error, reason} ->
         {:error, reason}
     end
   end
-  
+
   @doc false
   defp get_next_node(flow, current_node, action) do
-    action = action || "default"
-    
+    action = action || :default
+
+    # Convert string action to atom if needed for backward compatibility
+    action = if is_binary(action), do: String.to_atom(action), else: action
+
     case get_in(flow.connections, [current_node, action]) do
       nil ->
         if map_size(get_in(flow.connections, [current_node]) || %{}) > 0 do
           require Logger
-          Logger.warning("Flow ends: '#{action}' not found in #{inspect(Map.keys(get_in(flow.connections, [current_node])))}")
+
+          Logger.warning(
+            "Flow ends: '#{action}' not found in #{inspect(Map.keys(get_in(flow.connections, [current_node])))}"
+          )
         end
+
         nil
-        
-      next_node -> next_node
+
+      next_node ->
+        next_node
     end
   end
 end

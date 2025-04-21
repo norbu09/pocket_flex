@@ -6,3 +6,6 @@
 - try to create smaller files rather than one huge file - cut off at around 300 lines
 - never add Mix to any code that runs in production. Code that relies on Mix to determine in which environment we run breaks production.
 - when re-factoring pay extra attention to existing data structures and take them over with no modifications
+- always use atoms for control flow, never strings
+- for documentation please use the hex_docs package
+- for libraries lease use doc tests where possible

@@ -8,8 +8,11 @@ defmodule PocketFlex.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Starts a worker by calling: PocketFlex.Worker.start_link(arg)
-      # {PocketFlex.Worker, arg}
+      # Registry for StateServer process names
+      {Registry, keys: :unique, name: PocketFlex.StateRegistry},
+
+      # Supervisor for dynamic state servers
+      {DynamicSupervisor, strategy: :one_for_one, name: PocketFlex.StateSupervisor}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

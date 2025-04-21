@@ -180,6 +180,52 @@ connections = [
 ]
 ```
 
+## Implementation Details
+
+PocketFlex is an Elixir implementation of the PocketFlow agent framework, focusing on creating a flexible system for building flows of connected nodes.
+
+### Current Implementation
+
+- **Node System**
+  - `PocketFlex.Node`: Behavior module for defining nodes with lifecycle methods (prep, exec, post)
+  - `PocketFlex.NodeMacros`: Macros for simplifying node implementation with default implementations
+  - `PocketFlex.NodeRunner`: Handles node execution with retry logic and error handling
+
+- **Flow Management**
+  - `PocketFlex.Flow`: Manages node connections and flow execution
+  - `PocketFlex.DSL`: Provides a clean syntax for connecting nodes
+
+- **Batch Processing**
+  - `PocketFlex.BatchNode`: For processing lists of items
+  - `PocketFlex.ParallelBatchNode`: For parallel processing of lists
+  - `PocketFlex.BatchFlow`: For batch processing in flows
+  - `PocketFlex.ParallelBatchFlow`: For parallel batch processing in flows
+
+- **Async Execution**
+  - `PocketFlex.AsyncNode`: For asynchronous node execution
+
+### Planned Enhancements
+
+- **AsyncBatchNode Implementation**
+  - Create `PocketFlex.AsyncBatchNode` that combines AsyncNode and BatchNode functionality
+  - Create `PocketFlex.AsyncParallelBatchNode` for parallel asynchronous batch processing
+
+- **AsyncFlow Enhancement**
+  - Improve `PocketFlex.AsyncFlow` for better handling of asynchronous execution
+  - Add support for async orchestration of flows
+
+- **DSL Refinement**
+  - Make the DSL more expressive and intuitive for connecting nodes
+  - Add operators for conditional transitions
+
+- **Examples**
+  - Create example implementations to demonstrate different use cases
+  - Add examples for async and batch processing
+
+- **Documentation**
+  - Add comprehensive documentation for all modules and functions
+  - Include usage examples and best practices
+
 ## Documentation
 
 Complete documentation is available at [https://hexdocs.pm/pocket_flex](https://hexdocs.pm/pocket_flex).

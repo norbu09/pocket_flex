@@ -17,6 +17,7 @@ defmodule PocketFlex.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
+      mod: {PocketFlex.Application, []},
       extra_applications: [:logger]
     ]
   end
@@ -29,7 +30,7 @@ defmodule PocketFlex.MixProject do
       {:credo, ">= 1.7.0", only: [:dev, :test], runtime: false}
     ]
   end
-  
+
   defp package do
     [
       licenses: ["MIT"],
@@ -38,7 +39,7 @@ defmodule PocketFlex.MixProject do
       }
     ]
   end
-  
+
   defp docs do
     [
       main: "PocketFlex",
