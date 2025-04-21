@@ -1,0 +1,8 @@
+- we always want to use req when we write new APIs
+- run mix compile at the end of each step to make sure we have no new errors
+- in elixir we want to put defp functions at the bottom of the module and public def functions at the top
+- you can always look up documentation on https://hexdocs.pm. the URL syntax is https://hexdocs.pm/{package}/
+- for logging and debugging always use Logger, never IO.inspect. remember to require Logger when you use it
+- try to create smaller files rather than one huge file - cut off at around 300 lines
+- never add Mix to any code that runs in production. Code that relies on Mix to determine in which environment we run breaks production.
+- when re-factoring pay extra attention to existing data structures and take them over with no modifications
