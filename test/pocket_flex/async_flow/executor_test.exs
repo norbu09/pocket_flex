@@ -1,10 +1,14 @@
 defmodule PocketFlex.AsyncFlow.ExecutorTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   require Logger
 
   alias PocketFlex.AsyncFlow.Executor
 
-  # Define test nodes for the executor
+  setup do
+    flow_id = "test_flow_#{:erlang.unique_integer([:positive])}"
+    {:ok, %{flow_id: flow_id}}
+  end
+
   defmodule SyncNode do
     use PocketFlex.NodeMacros
 
@@ -38,7 +42,6 @@ defmodule PocketFlex.AsyncFlow.ExecutorTest do
     end
 
     def exec_async(data) do
-      # Return result directly without a task
       {:ok, String.upcase(data)}
     end
 
@@ -47,102 +50,105 @@ defmodule PocketFlex.AsyncFlow.ExecutorTest do
     end
   end
 
-  # Create a separate module that doesn't use PocketFlex.AsyncNode
-  # but implements the same interface manually
-  defmodule FailingAsyncNode do
-    # Instead of using the macro, we'll implement the functions directly
-    def prep(_state) do
-      # This will be called by the executor
+  defmodule FailingPrepAsyncNode do
+    def prep_async(_state) do
       {:error, "Prep failed"}
     end
 
-    def exec(_data) do
-      {:ok, "This won't be called"}
-    end
-
-    def post(_state, _prep_res, _exec_res) do
-      {:success, %{}}
-    end
+    def exec_async(_data), do: {:ok, "won't run"}
+    def post_async(state, _, _), do: {:ok, {:success, state}}
   end
 
-  setup do
-    # Generate a unique flow ID for this test
-    flow_id = "test_flow_#{:erlang.unique_integer([:positive])}"
+  defmodule FailingExecAsyncNode do
+    use PocketFlex.AsyncNode
 
-    # Return the context
-    %{flow_id: flow_id}
+    def prep_async(state), do: {:ok, state}
+    def exec_async(_prep_result), do: {:error, "Exec failed"}
+
+    def post_async(state, _, _),
+      do: {:error, %{context: :async_node_execution, error: "Post failed"}}
+  end
+
+  defmodule FailingPostAsyncNode do
+    use PocketFlex.AsyncNode
+
+    def prep_async(state), do: {:ok, state}
+    def exec_async(prep_result), do: {:ok, prep_result}
+
+    def post_async(_state, _prep_res, _exec_res),
+      do: {:error, %{context: :async_node_execution, error: "Post failed"}}
   end
 
   describe "execute_node function" do
     test "executes a synchronous node correctly", %{flow_id: flow_id} do
-      # Initial state
       state = %{input: "test"}
-      
-      # Execute the node
       result = Executor.execute_node(SyncNode, state, flow_id)
-      
-      # Verify the result
       assert match?({:ok, :success, %{result: "TEST"}}, result)
     end
 
     test "executes an asynchronous node with task correctly", %{flow_id: flow_id} do
-      # Initial state
       state = %{input: "test"}
-      
-      # Execute the node
       result = Executor.execute_node(AsyncNode, state, flow_id)
-      
-      # Verify the result
       assert match?({:ok, :success, %{result: "TEST"}}, result)
     end
 
     test "executes an asynchronous node with direct result correctly", %{flow_id: flow_id} do
-      # Initial state
       state = %{input: "test"}
-      
-      # Execute the node
       result = Executor.execute_node(DirectAsyncNode, state, flow_id)
-      
-      # Verify the result
       assert match?({:ok, :success, %{result: "TEST"}}, result)
     end
 
-    test "handles async node errors correctly", %{flow_id: flow_id} do
-      # Initial state
+    test "handles prep_async errors correctly", %{flow_id: flow_id} do
       state = %{input: "test"}
-      
-      # Mock the error handling in the Executor module
-      # We'll use meck to mock the execute_node function
-      :ok = :meck.new(Executor, [:passthrough])
-      :ok = :meck.expect(Executor, :execute_node, fn _node, _state, _flow_id -> 
-        {:error, "Prep failed"}
-      end)
-      
-      # Execute the failing node
-      result = Executor.execute_node(FailingAsyncNode, state, flow_id)
-      
-      # Verify the error was handled
-      assert match?({:error, _}, result)
-      
-      # Clean up the mock
-      :meck.unload(Executor)
+      result = Executor.execute_node(FailingPrepAsyncNode, state, flow_id)
+
+      case result do
+        {:error, %{context: :async_node_execution, error: err}} ->
+          assert is_binary(err) or match?(%RuntimeError{}, err) or
+                   (is_map(err) and Map.has_key?(err, :context) and Map.has_key?(err, :error))
+
+        _ ->
+          flunk("Unexpected error result: #{inspect(result)}")
+      end
+    end
+
+    test "handles exec_async errors correctly", %{flow_id: flow_id} do
+      state = %{input: "test"}
+      result = Executor.execute_node(FailingExecAsyncNode, state, flow_id)
+
+      case result do
+        {:error, %{context: :async_node_execution, error: err}} ->
+          assert is_binary(err) or match?(%RuntimeError{}, err) or
+                   (is_map(err) and Map.has_key?(err, :context) and Map.has_key?(err, :error))
+
+        _ ->
+          flunk("Unexpected error result: #{inspect(result)}")
+      end
+    end
+
+    test "handles post_async errors correctly", %{flow_id: flow_id} do
+      state = %{input: "test"}
+      result = Executor.execute_node(FailingPostAsyncNode, state, flow_id)
+
+      case result do
+        {:error, %{context: :async_node_execution, error: err}} ->
+          assert is_binary(err) or match?(%RuntimeError{}, err) or
+                   (is_map(err) and Map.has_key?(err, :context) and Map.has_key?(err, :error))
+
+        _ ->
+          flunk("Unexpected error result: #{inspect(result)}")
+      end
     end
   end
 
   describe "get_exec_result function" do
     test "awaits a task and returns its result" do
-      # Create a task
       task = Task.async(fn -> "task result" end)
-      
-      # Get the result
       result = Executor.get_exec_result(task)
-      
-      # Verify the result
       assert result == "task result"
     end
 
     test "returns non-task values directly" do
-      # Test with various values
       assert Executor.get_exec_result("direct result") == "direct result"
       assert Executor.get_exec_result(123) == 123
       assert Executor.get_exec_result(%{key: "value"}) == %{key: "value"}
@@ -151,25 +157,24 @@ defmodule PocketFlex.AsyncFlow.ExecutorTest do
 
   describe "error handling" do
     test "handle_node_error creates an error report", %{flow_id: flow_id} do
-      # Create an error
       error = %RuntimeError{message: "Test error"}
-      
-      # Handle the error
       result = Executor.handle_node_error(error, SyncNode, flow_id)
-      
-      # Verify the result
-      assert match?({:error, _}, result)
+
+      assert match?(
+               {:error, %{context: :node_execution, error: %RuntimeError{message: "Test error"}}},
+               result
+             )
     end
 
     test "handle_flow_error creates an error report", %{flow_id: flow_id} do
-      # Create an error
       error = %RuntimeError{message: "Test error"}
-      
-      # Handle the error
       result = Executor.handle_flow_error(error, flow_id)
-      
-      # Verify the result
-      assert match?({:error, _}, result)
+
+      assert match?(
+               {:error,
+                %{context: :flow_orchestration, error: %RuntimeError{message: "Test error"}}},
+               result
+             )
     end
   end
 end

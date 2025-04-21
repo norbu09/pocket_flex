@@ -41,9 +41,9 @@ defmodule PocketFlex.Monitoring do
     }
 
     Logger.metadata(flow_id: flow_id)
-    
+
     Logger.info("Starting flow execution", metadata: metadata)
-    
+
     # Store monitoring data
     PocketFlex.StateStorage.update_state(
       "monitor_#{flow_id}",
@@ -57,14 +57,14 @@ defmodule PocketFlex.Monitoring do
         initial_state: initial_state
       }
     )
-    
+
     # Future telemetry integration point
     # :telemetry.execute(
     #   [:pocket_flex, :flow, :start],
     #   %{system_time: System.system_time()},
     #   metadata
     # )
-    
+
     :ok
   end
 
@@ -83,31 +83,32 @@ defmodule PocketFlex.Monitoring do
   @spec update_monitoring(String.t(), module(), atom(), map()) :: :ok
   def update_monitoring(flow_id, current_node, status, metadata \\ %{}) do
     monitor_id = "monitor_#{flow_id}"
-    
+
     case PocketFlex.StateStorage.get_state(monitor_id) do
       %{} = monitor_state ->
         execution_path = [current_node | Map.get(monitor_state, :execution_path, [])]
-        
-        updated_state = monitor_state
+
+        updated_state =
+          monitor_state
           |> Map.put(:current_node, current_node)
           |> Map.put(:status, status)
           |> Map.put(:execution_path, execution_path)
           |> Map.put(:last_updated, DateTime.utc_now())
           |> Map.update(:metadata, metadata, &Map.merge(&1, metadata))
-        
+
         PocketFlex.StateStorage.update_state(monitor_id, updated_state)
-        
-        # Future telemetry integration point
-        # :telemetry.execute(
-        #   [:pocket_flex, :flow, :update],
-        #   %{system_time: System.system_time()},
-        #   %{flow_id: flow_id, current_node: current_node, status: status}
-        # )
-        
+
+      # Future telemetry integration point
+      # :telemetry.execute(
+      #   [:pocket_flex, :flow, :update],
+      #   %{system_time: System.system_time()},
+      #   %{flow_id: flow_id, current_node: current_node, status: status}
+      # )
+
       _ ->
         Logger.warning("Attempted to update monitoring for unknown flow: #{flow_id}")
     end
-    
+
     :ok
   end
 
@@ -126,36 +127,37 @@ defmodule PocketFlex.Monitoring do
   @spec record_error(String.t(), term(), module(), map()) :: :ok
   def record_error(flow_id, error, node, metadata \\ %{}) do
     monitor_id = "monitor_#{flow_id}"
-    
+
     error_entry = %{
       error: error,
       node: node,
       timestamp: DateTime.utc_now(),
       metadata: metadata
     }
-    
+
     case PocketFlex.StateStorage.get_state(monitor_id) do
       %{} = monitor_state ->
         errors = [error_entry | Map.get(monitor_state, :errors, [])]
-        
-        updated_state = monitor_state
+
+        updated_state =
+          monitor_state
           |> Map.put(:errors, errors)
           |> Map.put(:last_error, error_entry)
           |> Map.put(:status, :error)
-        
+
         PocketFlex.StateStorage.update_state(monitor_id, updated_state)
-        
-        # Future telemetry integration point
-        # :telemetry.execute(
-        #   [:pocket_flex, :flow, :error],
-        #   %{system_time: System.system_time()},
-        #   %{flow_id: flow_id, error: error, node: node}
-        # )
-        
+
+      # Future telemetry integration point
+      # :telemetry.execute(
+      #   [:pocket_flex, :flow, :error],
+      #   %{system_time: System.system_time()},
+      #   %{flow_id: flow_id, error: error, node: node}
+      # )
+
       _ ->
         Logger.warning("Attempted to record error for unknown flow: #{flow_id}")
     end
-    
+
     :ok
   end
 
@@ -173,41 +175,42 @@ defmodule PocketFlex.Monitoring do
   @spec complete_monitoring(String.t(), atom(), map()) :: :ok
   def complete_monitoring(flow_id, status, result) do
     monitor_id = "monitor_#{flow_id}"
-    
+
     case PocketFlex.StateStorage.get_state(monitor_id) do
       %{} = monitor_state ->
         start_time = Map.get(monitor_state, :start_time, DateTime.utc_now())
         end_time = DateTime.utc_now()
         duration = DateTime.diff(end_time, start_time, :millisecond)
-        
-        updated_state = monitor_state
+
+        updated_state =
+          monitor_state
           |> Map.put(:status, status)
           |> Map.put(:end_time, end_time)
           |> Map.put(:duration_ms, duration)
           |> Map.put(:result, result)
-        
+
         PocketFlex.StateStorage.update_state(monitor_id, updated_state)
-        
+
         metadata = %{
-          flow_id: flow_id, 
+          flow_id: flow_id,
           status: status,
           duration_ms: duration,
           error_count: length(Map.get(monitor_state, :errors, []))
         }
-        
+
         Logger.info("Flow execution completed", metadata: metadata)
-        
-        # Future telemetry integration point
-        # :telemetry.execute(
-        #   [:pocket_flex, :flow, :complete],
-        #   %{system_time: System.system_time(), duration: duration},
-        #   metadata
-        # )
-        
+
+      # Future telemetry integration point
+      # :telemetry.execute(
+      #   [:pocket_flex, :flow, :complete],
+      #   %{system_time: System.system_time(), duration: duration},
+      #   metadata
+      # )
+
       _ ->
         Logger.warning("Attempted to complete monitoring for unknown flow: #{flow_id}")
     end
-    
+
     :ok
   end
 

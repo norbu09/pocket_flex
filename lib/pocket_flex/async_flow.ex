@@ -35,29 +35,31 @@ defmodule PocketFlex.AsyncFlow do
   """
   @spec run_async(PocketFlex.Flow.t(), map(), keyword()) :: Task.t()
   def run_async(flow, state, opts \\ []) do
-    Task.async(fn -> 
+    Task.async(fn ->
       flow_id = Keyword.get(opts, :flow_id, "async_flow_#{System.unique_integer([:positive])}")
-      
+
       # Start monitoring for this flow
       ErrorHandler.start_monitoring(flow_id, flow, state)
-      
-      result = try do
-        PocketFlex.Flow.run(flow, state)
-      rescue
-        error ->
-          stacktrace = __STACKTRACE__
-          ErrorHandler.report_error(error, :async_flow_execution, %{
-            flow_id: flow_id,
-            stacktrace: stacktrace
-          })
-      catch
-        kind, error ->
-          ErrorHandler.report_error(error, :caught_in_async_flow, %{
-            flow_id: flow_id,
-            kind: kind
-          })
-      end
-      
+
+      result =
+        try do
+          PocketFlex.Flow.run(flow, state)
+        rescue
+          error ->
+            stacktrace = __STACKTRACE__
+
+            ErrorHandler.report_error(error, :async_flow_execution, %{
+              flow_id: flow_id,
+              stacktrace: stacktrace
+            })
+        catch
+          kind, error ->
+            ErrorHandler.report_error(error, :caught_in_async_flow, %{
+              flow_id: flow_id,
+              kind: kind
+            })
+        end
+
       # Update monitoring based on result
       case result do
         {:ok, final_state} ->
@@ -65,27 +67,32 @@ defmodule PocketFlex.AsyncFlow do
             end_time: DateTime.utc_now(),
             result: :success
           })
+
           {:ok, final_state}
-        
+
         {:error, _reason} = error ->
           ErrorHandler.complete_monitoring(flow_id, :failed, %{
             end_time: DateTime.utc_now(),
             result: :error,
             error: error
           })
+
           error
-          
+
         other ->
-          error = ErrorHandler.report_error(
-            "Unexpected result format from flow execution", 
-            :invalid_flow_result, 
-            %{flow_id: flow_id, result: other}
-          )
+          error =
+            ErrorHandler.report_error(
+              "Unexpected result format from flow execution",
+              :invalid_flow_result,
+              %{flow_id: flow_id, result: other}
+            )
+
           ErrorHandler.complete_monitoring(flow_id, :failed, %{
             end_time: DateTime.utc_now(),
             result: :error,
             error: error
           })
+
           error
       end
     end)
@@ -104,30 +111,34 @@ defmodule PocketFlex.AsyncFlow do
       * `{:ok, final_state}` - Success with the final state
       * `{:error, reason}` - Error with the reason
   """
-  @spec orchestrate_async(PocketFlex.Flow.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  @spec orchestrate_async(PocketFlex.Flow.t(), map(), keyword()) ::
+          {:ok, map()} | {:error, term()}
   def orchestrate_async(flow, state, opts \\ []) do
-    flow_id = Keyword.get(opts, :flow_id, "async_orchestration_#{System.unique_integer([:positive])}")
-    
+    flow_id =
+      Keyword.get(opts, :flow_id, "async_orchestration_#{System.unique_integer([:positive])}")
+
     # Start monitoring for this flow
     ErrorHandler.start_monitoring(flow_id, flow, state)
-    
-    result = try do
-      Orchestrator.orchestrate(flow, flow.start_node, state, flow.params, flow_id)
-    rescue
-      error ->
-        stacktrace = __STACKTRACE__
-        ErrorHandler.report_error(error, :async_flow_orchestration, %{
-          flow_id: flow_id,
-          stacktrace: stacktrace
-        })
-    catch
-      kind, error ->
-        ErrorHandler.report_error(error, :caught_in_orchestration, %{
-          flow_id: flow_id,
-          kind: kind
-        })
-    end
-    
+
+    result =
+      try do
+        Orchestrator.orchestrate(flow, flow.start_node, state, flow.params, flow_id)
+      rescue
+        error ->
+          stacktrace = __STACKTRACE__
+
+          ErrorHandler.report_error(error, :async_flow_orchestration, %{
+            flow_id: flow_id,
+            stacktrace: stacktrace
+          })
+      catch
+        kind, error ->
+          ErrorHandler.report_error(error, :caught_in_orchestration, %{
+            flow_id: flow_id,
+            kind: kind
+          })
+      end
+
     # Update monitoring based on result
     case result do
       {:ok, _final_state} = success ->
@@ -135,14 +146,16 @@ defmodule PocketFlex.AsyncFlow do
           end_time: DateTime.utc_now(),
           result: :success
         })
+
         success
-      
+
       {:error, _reason} = error ->
         ErrorHandler.complete_monitoring(flow_id, :failed, %{
           end_time: DateTime.utc_now(),
           result: :error,
           error: error
         })
+
         error
     end
   end

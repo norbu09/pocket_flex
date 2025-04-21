@@ -22,20 +22,21 @@ defmodule PocketFlex.AsyncFlow.Executor do
     - :ok, the action, and the updated state, or
     - :error and a reason
   """
-  @spec execute_node(module(), map(), String.t()) :: 
-    {:ok, atom(), map()} | {:error, term()}
+  @spec execute_node(module(), map(), String.t()) ::
+          {:ok, atom(), map()} | {:error, term()}
   def execute_node(current_node, state, flow_id) do
     # Run the node asynchronously if it's an AsyncNode, otherwise run it synchronously
     if function_exported?(current_node, :prep_async, 1) do
       Logger.debug("Running async node: #{inspect(current_node)}")
-      
+
       # Execute the async node using the async callbacks with proper error handling
       with {:ok, prep_result} <- current_node.prep_async(state),
            {:ok, task_or_result} <- current_node.exec_async(prep_result),
            # If the result is a Task, await it
            exec_result <- get_exec_result(task_or_result),
            # Process the post callback
-           {:ok, {action, updated_state}} <- current_node.post_async(state, prep_result, exec_result) do
+           {:ok, {action, updated_state}} <-
+             current_node.post_async(state, prep_result, exec_result) do
         # Return the result in the format expected by the flow orchestrator
         {:ok, action, updated_state}
       else
@@ -44,7 +45,7 @@ defmodule PocketFlex.AsyncFlow.Executor do
             flow_id: flow_id,
             node: current_node
           })
-        
+
         error ->
           ErrorHandler.report_error(error, :unexpected_async_node_error, %{
             flow_id: flow_id,
@@ -84,7 +85,7 @@ defmodule PocketFlex.AsyncFlow.Executor do
   @spec handle_node_error(term(), module(), String.t()) :: {:error, term()}
   def handle_node_error(error, current_node, flow_id) do
     stacktrace = Process.info(self(), :current_stacktrace)
-    
+
     ErrorHandler.report_error(error, :node_execution, %{
       flow_id: flow_id,
       node: current_node,
@@ -105,7 +106,7 @@ defmodule PocketFlex.AsyncFlow.Executor do
   @spec handle_flow_error(term(), String.t()) :: {:error, term()}
   def handle_flow_error(error, flow_id) do
     stacktrace = Process.info(self(), :current_stacktrace)
-    
+
     ErrorHandler.report_error(error, :flow_orchestration, %{
       flow_id: flow_id,
       stacktrace: stacktrace

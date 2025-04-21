@@ -1,6 +1,29 @@
 defmodule PocketFlex.AsyncTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   require Logger
+
+  setup_all do
+    # Ensure ETS is started for async tests
+    try do
+      :ets.delete(:pocket_flex_shared_state)
+    rescue
+      _ -> :ok
+    end
+
+    case PocketFlex.StateStorage.ETS.start_link(nil) do
+      {:ok, _} ->
+        :ok
+
+      {:error, {:already_started, _}} ->
+        :ok
+
+      other ->
+        IO.inspect(other, label: "ETS.start_link/1 unexpected result")
+        :ok
+    end
+
+    :ok
+  end
 
   describe "async node functionality" do
     defmodule AsyncTestNode do

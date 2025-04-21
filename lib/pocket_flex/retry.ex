@@ -40,7 +40,7 @@ defmodule PocketFlex.Retry do
     max_delay = Keyword.get(opts, :max_delay, 5000)
     jitter = Keyword.get(opts, :jitter, true)
     retry_on = Keyword.get(opts, :retry_on, fn _error -> true end)
-    
+
     do_retry(function, max_retries, 0, base_delay, max_delay, jitter, retry_on)
   end
 
@@ -100,11 +100,11 @@ defmodule PocketFlex.Retry do
     _max_failures = Keyword.get(opts, :max_failures, 5)
     _cooldown_ms = Keyword.get(opts, :cooldown_ms, 30000)
     retry_opts = Keyword.get(opts, :retry_opts, [])
-    
+
     case get_circuit_state() do
       :closed ->
         try_with_circuit(function, retry_opts)
-        
+
       _ ->
         # Handle any other circuit state
         {:error, :circuit_unavailable}
@@ -113,48 +113,82 @@ defmodule PocketFlex.Retry do
 
   # Private functions
 
-  defp do_retry(function, _max_retries, _current_retry, _base_delay, _max_delay, _jitter, _retry_on) 
+  defp do_retry(
+         function,
+         _max_retries,
+         _current_retry,
+         _base_delay,
+         _max_delay,
+         _jitter,
+         _retry_on
+       )
        when not is_function(function, 0) do
     {:error, :invalid_function}
   end
-  
-  defp do_retry(_function, max_retries, current_retry, _base_delay, _max_delay, _jitter, _retry_on) 
+
+  defp do_retry(
+         _function,
+         max_retries,
+         current_retry,
+         _base_delay,
+         _max_delay,
+         _jitter,
+         _retry_on
+       )
        when current_retry > max_retries do
     {:error, :max_retries_exceeded}
   end
-  
+
   defp do_retry(function, max_retries, current_retry, base_delay, max_delay, jitter, retry_on) do
     try do
       function.()
     rescue
       error ->
         handle_retry_error(
-          error, 
-          function, 
-          max_retries, 
-          current_retry, 
-          base_delay, 
-          max_delay, 
-          jitter, 
+          error,
+          function,
+          max_retries,
+          current_retry,
+          base_delay,
+          max_delay,
+          jitter,
           retry_on
         )
     catch
       kind, value ->
         Logger.warning("Caught #{kind} in retry: #{inspect(value)}")
-        
+
         if current_retry < max_retries do
           delay = calculate_delay(base_delay, current_retry, max_delay, jitter)
           Process.sleep(delay)
-          do_retry(function, max_retries, current_retry + 1, base_delay, max_delay, jitter, retry_on)
+
+          do_retry(
+            function,
+            max_retries,
+            current_retry + 1,
+            base_delay,
+            max_delay,
+            jitter,
+            retry_on
+          )
         else
           {:error, {:caught, kind, value}}
         end
     end
   end
-  
-  defp handle_retry_error(error, function, max_retries, current_retry, base_delay, max_delay, jitter, retry_on) do
+
+  defp handle_retry_error(
+         error,
+         function,
+         max_retries,
+         current_retry,
+         base_delay,
+         max_delay,
+         jitter,
+         retry_on
+       ) do
     Logger.warning("Error in retry attempt #{current_retry}: #{inspect(error)}")
-    
+
     if current_retry < max_retries && retry_on.(error) do
       delay = calculate_delay(base_delay, current_retry, max_delay, jitter)
       Logger.debug("Retrying after #{delay}ms")
@@ -164,23 +198,23 @@ defmodule PocketFlex.Retry do
       {:error, error}
     end
   end
-  
+
   defp calculate_delay(base_delay, retry_count, max_delay, true) do
     exponential_delay = base_delay * :math.pow(2, retry_count)
     jitter_factor = :rand.uniform()
     delay = exponential_delay * (1 + jitter_factor / 2)
     min(round(delay), max_delay)
   end
-  
+
   defp calculate_delay(base_delay, retry_count, max_delay, false) do
     delay = base_delay * :math.pow(2, retry_count)
     min(round(delay), max_delay)
   end
-  
+
   defp get_circuit_state do
     :closed
   end
-  
+
   defp try_with_circuit(function, retry_opts) do
     retry(function, retry_opts)
   end

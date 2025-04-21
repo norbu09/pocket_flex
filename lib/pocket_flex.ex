@@ -110,7 +110,8 @@ defmodule PocketFlex do
       * `{:error, reason}` - Error with the reason
   """
   @spec run_async_parallel_batch(PocketFlex.Flow.t(), map(), keyword()) :: Task.t()
-  defdelegate run_async_parallel_batch(flow, shared, opts \\ []), to: PocketFlex.AsyncParallelBatchFlow
+  defdelegate run_async_parallel_batch(flow, shared, opts \\ []),
+    to: PocketFlex.AsyncParallelBatchFlow
 
   @doc """
   Runs a flow asynchronously with the given shared state.
@@ -128,48 +129,51 @@ defmodule PocketFlex do
   """
   @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
   def run_async(flow, shared) do
-    Task.async(fn -> 
+    Task.async(fn ->
       flow_id = "async_flow_#{:erlang.unique_integer([:positive])}"
-      
+
       try do
         # Start monitoring the flow execution
         ErrorHandler.start_monitoring(flow_id, flow, shared)
-        
+
         # Initialize state storage with the shared state
         case PocketFlex.StateStorage.update_state(flow_id, shared) do
           {:ok, _} ->
             # Execute the flow using AsyncFlow orchestrator
             result = PocketFlex.AsyncFlow.orchestrate_async(flow, shared)
-            
+
             # Complete monitoring with the final status
             case result do
               {:ok, final_state} ->
                 ErrorHandler.complete_monitoring(flow_id, :completed, final_state)
                 {:ok, final_state}
+
               {:error, reason} ->
                 ErrorHandler.complete_monitoring(flow_id, :failed, %{reason: reason})
                 {:error, reason}
             end
-            
+
           {:error, reason} ->
             # Report the error
-            error_info = ErrorHandler.report_error(reason, :state_initialization, %{flow_id: flow_id})
-            
+            error_info =
+              ErrorHandler.report_error(reason, :state_initialization, %{flow_id: flow_id})
+
             # Complete monitoring with failed status
             ErrorHandler.complete_monitoring(flow_id, :failed, %{reason: reason})
-            
+
             # Return the error
             {:error, error_info}
-            
+
           shared_state when is_map(shared_state) ->
             # Execute the flow using AsyncFlow orchestrator with the shared state directly
             result = PocketFlex.AsyncFlow.orchestrate_async(flow, shared_state)
-            
+
             # Complete monitoring with the final status
             case result do
               {:ok, final_state} ->
                 ErrorHandler.complete_monitoring(flow_id, :completed, final_state)
                 {:ok, final_state}
+
               {:error, reason} ->
                 ErrorHandler.complete_monitoring(flow_id, :failed, %{reason: reason})
                 {:error, reason}
@@ -178,14 +182,15 @@ defmodule PocketFlex do
       rescue
         error ->
           # Log the error
-          error_info = ErrorHandler.report_error(error, :flow_orchestration, %{
-            flow_id: flow_id,
-            stacktrace: __STACKTRACE__
-          })
-          
+          error_info =
+            ErrorHandler.report_error(error, :flow_orchestration, %{
+              flow_id: flow_id,
+              stacktrace: __STACKTRACE__
+            })
+
           # Complete monitoring with error status
           ErrorHandler.complete_monitoring(flow_id, :crashed, %{error: error})
-          
+
           # Return error
           {:error, error_info}
       after

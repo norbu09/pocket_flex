@@ -1,5 +1,5 @@
 defmodule PocketFlex.AsyncFlow.OrchestratorTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   require Logger
 
   alias PocketFlex.AsyncFlow.Orchestrator
@@ -10,6 +10,7 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
 
     def prep(state), do: state
     def exec(data), do: data
+
     def post(state, _prep_res, _exec_res) do
       # Return branch action if branch_action is set in the state
       action = Map.get(state, :branch_action, :success)
@@ -38,7 +39,7 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
 
     def prep(state), do: state
     def exec(data), do: data
-    
+
     def post(state, _prep_res, _exec_res) do
       # Connect to EndNode by returning success
       {:success, Map.put(state, :branch_processed, true)}
@@ -63,17 +64,17 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
     flow_id = "test_flow_#{:erlang.unique_integer([:positive])}"
 
     # Return the context
-    %{flow: flow, flow_id: flow_id}
+    {:ok, %{flow: flow, flow_id: flow_id}}
   end
 
   describe "orchestrate function" do
     test "orchestrates a simple flow successfully", %{flow: flow, flow_id: flow_id} do
       # Initial state
       state = %{test: true}
-      
+
       # Run the orchestrator
       {:ok, final_state} = Orchestrator.orchestrate(flow, flow.start_node, state, %{}, flow_id)
-      
+
       # Verify all nodes were processed in order
       assert final_state.start_processed == true
       assert final_state.middle_processed == true
@@ -83,10 +84,10 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
     test "handles branching based on action", %{flow: flow, flow_id: flow_id} do
       # Initial state with branch action
       state = %{test: true, branch_action: :branch}
-      
+
       # Run the orchestrator with a state that will cause branching
       {:ok, final_state} = Orchestrator.orchestrate(flow, StartNode, state, %{}, flow_id)
-      
+
       # Verify the branch was taken
       assert final_state.start_processed == true
       assert Map.get(final_state, :branch_processed) == true
@@ -99,10 +100,10 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
     test "handles nil node gracefully", %{flow_id: flow_id} do
       # Initial state
       state = %{test: true}
-      
+
       # Run the orchestrator with nil node
       {:ok, final_state} = Orchestrator.orchestrate(nil, nil, state, %{}, flow_id)
-      
+
       # Verify the state is returned unchanged
       assert final_state == state
     end
@@ -111,15 +112,15 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
       # Test with specific action
       next_node = Orchestrator.get_next_node(flow, StartNode, :success)
       assert next_node == MiddleNode
-      
+
       # Test with branch action
       next_node = Orchestrator.get_next_node(flow, StartNode, :branch)
       assert next_node == BranchNode
-      
+
       # Test with default action (should not be found in this flow)
       next_node = Orchestrator.get_next_node(flow, StartNode, :default)
       assert next_node == nil
-      
+
       # Test with non-existent action
       next_node = Orchestrator.get_next_node(flow, StartNode, :nonexistent)
       assert next_node == nil
@@ -132,30 +133,26 @@ defmodule PocketFlex.AsyncFlow.OrchestratorTest do
       defmodule FailingNode do
         use PocketFlex.NodeMacros
 
-        def prep(_state), do: raise "Simulated failure"
+        def prep(_state), do: raise("Simulated failure")
         def exec(data), do: data
         def post(state, _prep_res, _exec_res), do: {:success, state}
       end
-      
+
       # Create a flow with the failing node
       failing_flow =
         PocketFlex.Flow.new()
         |> PocketFlex.Flow.add_node(FailingNode)
         |> PocketFlex.Flow.start(FailingNode)
-      
+
       # Initial state
       state = %{test: true}
-      
+
       # Run the orchestrator with the failing flow
-      result = try do
+      result =
         Orchestrator.orchestrate(failing_flow, failing_flow.start_node, state, %{}, flow_id)
-      rescue
-        e -> {:error, e}
-      end
-      
-      # Verify the error was handled - accept either direct error or wrapped error
-      assert match?({:error, %RuntimeError{}}, result) or 
-             match?({:error, %{error: {:prep_failed, %RuntimeError{}}}}, result)
+
+      # Verify the error has the expected structure from ErrorHandler
+      assert match?({:error, %{context: :node_prep, error: {:prep_failed, _}}}, result)
     end
   end
 end

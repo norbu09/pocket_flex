@@ -5,7 +5,9 @@ defmodule PocketFlex.Application do
 
   use Application
 
-  @table_name :pocket_flex_shared_state
+  @table_name Application.compile_env(:pocket_flex, PocketFlex.StateStorage.ETS,
+                table_name: :pocket_flex_shared_state
+              )[:table_name]
 
   @impl true
   def start(_type, _args) do
@@ -14,6 +16,7 @@ defmodule PocketFlex.Application do
       {PocketFlex.StateStorage.ETS, []}
     ]
 
+    # Ensure ETS table is created on application boot
     if :ets.info(@table_name) == :undefined do
       :ets.new(@table_name, [:set, :public, :named_table])
     end

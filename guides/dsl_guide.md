@@ -24,6 +24,24 @@ flow = NodeA ~> :success ~> NodeB
 
 This creates a connection from `NodeA` to `NodeB` using the `:success` action.
 
+## Fallback Connection Behavior
+
+When a flow is executed and a connection for a specific action isn't found, PocketFlex will automatically fall back to the `:default` connection for that node if one exists. If neither the specific action nor the default action is found, the flow ends.
+
+```elixir
+connections = [
+  NodeA ~> :special ~> NodeB,
+  NodeA >>> NodeC  # default fallback
+]
+
+flow = Flow.new()
+|> Flow.start(NodeA)
+|> apply_connections(connections)
+
+# On action :special -> NodeB
+# On any other action -> NodeC (default)
+```
+
 ## Helper Functions
 
 ### Conditional Connections (`on`)

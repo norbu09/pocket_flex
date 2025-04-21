@@ -1,8 +1,7 @@
 defmodule PocketFlex.AsyncBatchTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   require Logger
 
-  # Define test nodes
   defmodule BatchItemNode do
     use PocketFlex.AsyncBatchNode
 
@@ -66,11 +65,23 @@ defmodule PocketFlex.AsyncBatchTest do
       task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, shared)
 
       # Wait for the task to complete
-      {:ok, final_state} = Task.await(task, 5000)
+      result = Task.await(task, 5000)
 
-      # Verify the results
-      assert final_state["processed"] == "ITEM3"
-      assert final_state["result"] == "ITEM3 processed"
+      # Verify the results or errors
+      case result do
+        {:ok, final_state} ->
+          assert final_state["processed"] == "ITEM3"
+          assert final_state["result"] == "ITEM3 processed"
+
+        {:error, %{context: :async_batch_item_processing, error: error}} ->
+          flunk("Async batch item processing error: #{inspect(error)}")
+
+        {:error, %{context: :async_parallel_batch_item_processing, error: error}} ->
+          flunk("Async parallel batch item processing error: #{inspect(error)}")
+
+        other ->
+          flunk("Unexpected result: #{inspect(other)}")
+      end
     end
 
     test "processes batch items in parallel" do
@@ -89,14 +100,26 @@ defmodule PocketFlex.AsyncBatchTest do
       task = PocketFlex.AsyncParallelBatchFlow.run_async_parallel_batch(flow, shared)
 
       # Wait for the task to complete with a longer timeout
-      {:ok, final_state} = Task.await(task, 5000)
+      result = Task.await(task, 5000)
 
-      # Verify the results
-      assert final_state["processed"] == "ITEM3"
-      assert final_state["result"] == "ITEM3 processed"
+      # Verify the results or errors
+      case result do
+        {:ok, final_state} ->
+          assert final_state["processed"] == "ITEM3"
+          assert final_state["result"] == "ITEM3 processed"
+
+        {:error, %{context: :async_batch_item_processing, error: error}} ->
+          flunk("Async batch item processing error: #{inspect(error)}")
+
+        {:error, %{context: :async_parallel_batch_item_processing, error: error}} ->
+          flunk("Async parallel batch item processing error: #{inspect(error)}")
+
+        other ->
+          flunk("Unexpected result: #{inspect(other)}")
+      end
 
       # Log the final result for debugging
-      Logger.info("Parallel batch flow result: #{inspect(final_state)}")
+      Logger.info("Parallel batch flow result: #{inspect(result)}")
     end
   end
 
@@ -123,19 +146,31 @@ defmodule PocketFlex.AsyncBatchTest do
       task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, shared)
 
       # Wait for the task to complete
-      {:ok, final_state} = Task.await(task, 5000)
+      result = Task.await(task, 5000)
 
       # Get monitoring info
       monitoring = PocketFlex.Monitoring.get_monitoring(flow_id)
 
-      # Verify the results
-      assert final_state["processed"] == "ITEM3"
-      assert final_state["result"] == "ITEM3 processed"
-      
+      # Verify the results or errors
+      case result do
+        {:ok, final_state} ->
+          assert final_state["processed"] == "ITEM3"
+          assert final_state["result"] == "ITEM3 processed"
+
+        {:error, %{context: :async_batch_item_processing, error: error}} ->
+          flunk("Async batch item processing error: #{inspect(error)}")
+
+        {:error, %{context: :async_parallel_batch_item_processing, error: error}} ->
+          flunk("Async parallel batch item processing error: #{inspect(error)}")
+
+        other ->
+          flunk("Unexpected result: #{inspect(other)}")
+      end
+
       # Verify monitoring worked
       assert monitoring.status == :running
       assert is_list(monitoring.execution_path)
-      
+
       # Clean up
       PocketFlex.Monitoring.cleanup_monitoring(flow_id)
     end

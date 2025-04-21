@@ -28,7 +28,7 @@ defmodule PocketFlex.StateStorage.ETS do
 
   ## Implementation Details
 
-  * The ETS table is named `:pocket_flex_shared_state`
+  * The ETS table is named `:pocket_flex_shared_state` by default
   * Each entry in the table is a tuple of `{flow_id, state}`
   * The table is created with the `:set` type, ensuring unique flow_ids
   * The table is created with `:public` access, allowing concurrent reads
@@ -39,7 +39,9 @@ defmodule PocketFlex.StateStorage.ETS do
   use GenServer
   require Logger
 
-  @table_name :pocket_flex_shared_state
+  @table_name Application.compile_env(:pocket_flex, __MODULE__,
+                table_name: :pocket_flex_shared_state
+              )[:table_name]
 
   # Client API
 
@@ -119,20 +121,69 @@ defmodule PocketFlex.StateStorage.ETS do
     GenServer.call(__MODULE__, {:cleanup, flow_id})
   end
 
+  @doc """
+  Clears all objects from the ETS table.
+  Use only for test isolation.
+  """
+  def clear_table do
+    GenServer.call(__MODULE__, :clear_table)
+  end
+
   # Private functions for state access
-  
+
+  defp ensure_table_exists do
+    if :ets.info(@table_name) == :undefined do
+      Logger.info("ETS table #{@table_name} missing, creating now.")
+      :ets.new(@table_name, [:set, :public, :named_table])
+    end
+
+    :ok
+  end
+
   defp lookup_state(flow_id) do
+    ensure_table_exists()
+
     case :ets.lookup(@table_name, flow_id) do
-      [{^flow_id, state}] -> {:ok, state}
-      [] -> {:ok, %{}}
-      _ -> 
+      [{^flow_id, state}] ->
+        {:ok, state}
+
+      [] ->
+        {:ok, %{}}
+
+      _ ->
         Logger.error("Error looking up state for flow_id #{flow_id}")
         {:error, :lookup_failed}
     end
   rescue
-    error -> 
+    error ->
       Logger.error("Exception looking up state for flow_id #{flow_id}: #{inspect(error)}")
       {:error, :lookup_failed}
+  end
+
+  defp insert_state(flow_id, state_data) do
+    ensure_table_exists()
+
+    try do
+      :ets.insert(@table_name, {flow_id, state_data})
+      :ok
+    rescue
+      error ->
+        Logger.error("Failed to insert state for flow_id #{flow_id}: #{inspect(error)}")
+        {:error, :insert_failed}
+    end
+  end
+
+  defp delete_state(flow_id) do
+    ensure_table_exists()
+
+    try do
+      :ets.delete(@table_name, flow_id)
+      :ok
+    rescue
+      error ->
+        Logger.error("Failed to delete state for flow_id #{flow_id}: #{inspect(error)}")
+        {:error, :delete_failed}
+    end
   end
 
   # Server Callbacks
@@ -142,7 +193,7 @@ defmodule PocketFlex.StateStorage.ETS do
     # Ensure the table exists
     if :ets.info(@table_name) == :undefined do
       Logger.info("Creating ETS table #{@table_name} for state storage")
-      
+
       case create_table() do
         {:ok, _table} -> {:ok, %{}}
         {:error, reason} -> {:stop, reason}
@@ -158,7 +209,7 @@ defmodule PocketFlex.StateStorage.ETS do
       table = :ets.new(@table_name, [:set, :public, :named_table])
       {:ok, table}
     rescue
-      error -> 
+      error ->
         Logger.error("Failed to create ETS table: #{inspect(error)}")
         {:error, :table_creation_failed}
     end
@@ -167,6 +218,7 @@ defmodule PocketFlex.StateStorage.ETS do
   @impl true
   def handle_call({:get_state, flow_id}, _from, state) do
     result = lookup_state(flow_id)
+
     case result do
       {:ok, flow_state} -> {:reply, flow_state, state}
       {:error, reason} -> {:reply, {:error, reason}, state}
@@ -176,10 +228,11 @@ defmodule PocketFlex.StateStorage.ETS do
   @impl true
   def handle_call({:update_state, flow_id, new_state}, _from, state) do
     case insert_state(flow_id, new_state) do
-      :ok -> 
+      :ok ->
         Logger.debug("Updated state for flow_id #{flow_id}")
         {:reply, new_state, state}
-      {:error, reason} -> 
+
+      {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
   end
@@ -192,7 +245,7 @@ defmodule PocketFlex.StateStorage.ETS do
       Logger.debug("Merged state for flow_id #{flow_id}")
       {:reply, updated_state, state}
     else
-      {:error, reason} -> 
+      {:error, reason} ->
         Logger.error("Failed to merge state for flow_id #{flow_id}: #{inspect(reason)}")
         {:reply, {:error, reason}, state}
     end
@@ -201,33 +254,26 @@ defmodule PocketFlex.StateStorage.ETS do
   @impl true
   def handle_call({:cleanup, flow_id}, _from, state) do
     case delete_state(flow_id) do
-      :ok -> 
+      :ok ->
         Logger.debug("Cleaned up state for flow_id #{flow_id}")
         {:reply, :ok, state}
-      {:error, reason} -> 
+
+      {:error, reason} ->
         {:reply, {:error, reason}, state}
     end
   end
 
-  defp insert_state(flow_id, state_data) do
-    try do
-      :ets.insert(@table_name, {flow_id, state_data})
-      :ok
-    rescue
-      error -> 
-        Logger.error("Failed to insert state for flow_id #{flow_id}: #{inspect(error)}")
-        {:error, :insert_failed}
-    end
-  end
+  @impl true
+  def handle_call(:clear_table, _from, state) do
+    ensure_table_exists()
 
-  defp delete_state(flow_id) do
     try do
-      :ets.delete(@table_name, flow_id)
-      :ok
+      :ets.delete_all_objects(@table_name)
+      {:reply, :ok, state}
     rescue
-      error -> 
-        Logger.error("Failed to delete state for flow_id #{flow_id}: #{inspect(error)}")
-        {:error, :delete_failed}
+      error ->
+        Logger.warning("Failed to clear ETS table in handle_call: #{inspect(error)}")
+        {:reply, :ok, state}
     end
   end
 end

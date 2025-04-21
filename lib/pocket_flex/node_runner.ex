@@ -22,7 +22,8 @@ defmodule PocketFlex.NodeRunner do
     - :ok, the action key, and the updated shared state, or
     - :error and an error reason
   """
-  @spec run_node(module(), map(), String.t() | nil) :: {:ok, atom() | nil, map()} | {:error, term()}
+  @spec run_node(module(), map(), String.t() | nil) ::
+          {:ok, atom() | nil, map()} | {:error, term()}
   def run_node(node, shared, flow_id \\ nil) do
     try do
       # Update monitoring if flow_id is provided
@@ -40,25 +41,28 @@ defmodule PocketFlex.NodeRunner do
                   # Update monitoring if flow_id is provided
                   if flow_id, do: ErrorHandler.update_monitoring(flow_id, node, :completed)
                   {:ok, action, updated_shared}
-                
+
                 {:error, reason} ->
                   if flow_id do
                     ErrorHandler.record_error(flow_id, reason, node, %{stage: :post})
                   end
+
                   ErrorHandler.report_error(reason, :node_post, %{node: node})
               end
-            
+
             {:error, reason} ->
               if flow_id do
                 ErrorHandler.record_error(flow_id, reason, node, %{stage: :exec})
               end
+
               ErrorHandler.report_error(reason, :node_execution, %{node: node})
           end
-        
+
         {:error, reason} ->
           if flow_id do
             ErrorHandler.record_error(flow_id, reason, node, %{stage: :prep})
           end
+
           ErrorHandler.report_error(reason, :node_prep, %{node: node})
       end
     rescue
@@ -66,13 +70,14 @@ defmodule PocketFlex.NodeRunner do
         if flow_id do
           ErrorHandler.record_error(flow_id, e, node, %{stage: :unknown})
         end
+
         ErrorHandler.report_error(e, :node_execution, %{node: node, stacktrace: __STACKTRACE__})
     end
   end
 
   @doc """
   Executes the node's prep function with error handling.
-  
+
   ## Returns
     - `{:ok, prep_result}` on success
     - `{:error, reason}` on failure
@@ -82,7 +87,7 @@ defmodule PocketFlex.NodeRunner do
     try do
       {:ok, node.prep(state)}
     rescue
-      error -> 
+      error ->
         Logger.error("Error in node prep: #{inspect(error)}")
         {:error, {:prep_failed, error}}
     end
@@ -90,7 +95,7 @@ defmodule PocketFlex.NodeRunner do
 
   @doc """
   Executes the node's post function with error handling.
-  
+
   ## Returns
     - `{:ok, action, updated_state}` on success
     - `{:error, reason}` on failure
@@ -101,7 +106,7 @@ defmodule PocketFlex.NodeRunner do
       {action, updated_state} = node.post(state, prep_result, exec_result)
       {:ok, action, updated_state}
     rescue
-      error -> 
+      error ->
         Logger.error("Error in node post: #{inspect(error)}")
         {:error, {:post_failed, error}}
     end
@@ -120,8 +125,8 @@ defmodule PocketFlex.NodeRunner do
     - `{:ok, exec_result}` on success
     - `{:error, reason}` on failure
   """
-  @spec execute_with_retries(module(), term(), non_neg_integer(), String.t() | nil) :: 
-        {:ok, term()} | {:error, term()}
+  @spec execute_with_retries(module(), term(), non_neg_integer(), String.t() | nil) ::
+          {:ok, term()} | {:error, term()}
   def execute_with_retries(node, prep_result, retry_count, flow_id \\ nil) do
     try do
       {:ok, node.exec(prep_result)}
@@ -135,7 +140,7 @@ defmodule PocketFlex.NodeRunner do
         # Log retry attempt
         if retry_count > 0 do
           Logger.warning("Retry attempt #{retry_count} for #{inspect(node)}")
-          
+
           if flow_id do
             ErrorHandler.update_monitoring(flow_id, node, :retrying, %{
               retry_count: retry_count,
@@ -151,11 +156,11 @@ defmodule PocketFlex.NodeRunner do
           if function_exported?(node, :exec_fallback, 2) do
             try do
               Logger.info("Using fallback for #{inspect(node)}")
-              
+
               if flow_id do
                 ErrorHandler.update_monitoring(flow_id, node, :fallback)
               end
-              
+
               {:ok, node.exec_fallback(prep_result, e)}
             rescue
               fallback_error ->
@@ -164,10 +169,14 @@ defmodule PocketFlex.NodeRunner do
             end
           else
             # Try to recover using the error handler
-            case ErrorHandler.attempt_recovery(e, :node_execution, %{node: node, prep_result: prep_result}) do
+            case ErrorHandler.attempt_recovery(e, :node_execution, %{
+                   node: node,
+                   prep_result: prep_result
+                 }) do
               {:ok, recovery_result} ->
                 Logger.info("Recovered from error in #{inspect(node)}")
                 {:ok, recovery_result}
+
               _ ->
                 Logger.error("Max retries exceeded for #{inspect(node)}: #{inspect(e)}")
                 {:error, {:max_retries_exceeded, e}}

@@ -161,15 +161,17 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
       {:ok, final_shared} ->
         # Clean up the state
         PocketFlex.StateStorage.cleanup(flow_id)
-        
+
         # Return the aggregated results
-        aggregated_results = final_shared["aggregated_results"] || %{
-          total_urls: length(urls),
-          total_word_count: 0,
-          average_word_count: 0.0,
-          timestamp: DateTime.utc_now()
-        }
-        
+        aggregated_results =
+          final_shared["aggregated_results"] ||
+            %{
+              total_urls: length(urls),
+              total_word_count: 0,
+              average_word_count: 0.0,
+              timestamp: DateTime.utc_now()
+            }
+
         {:ok, aggregated_results}
 
       {:error, reason} ->
@@ -218,15 +220,17 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
       {:ok, final_shared} ->
         # Clean up the state
         PocketFlex.StateStorage.cleanup(flow_id)
-        
+
         # Return the aggregated results
-        aggregated_results = final_shared["aggregated_results"] || %{
-          total_urls: length(urls),
-          total_word_count: 0,
-          average_word_count: 0.0,
-          timestamp: DateTime.utc_now()
-        }
-        
+        aggregated_results =
+          final_shared["aggregated_results"] ||
+            %{
+              total_urls: length(urls),
+              total_word_count: 0,
+              average_word_count: 0.0,
+              timestamp: DateTime.utc_now()
+            }
+
         {:ok, aggregated_results}
 
       {:error, reason} ->

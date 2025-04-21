@@ -142,7 +142,10 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
     if is_list(batch_items) do
       process_items_in_parallel(flow, flow_id, batch_items, opts)
     else
-      Logger.warning("Batch prep did not return a list. Using the entire result as a single item.")
+      Logger.warning(
+        "Batch prep did not return a list. Using the entire result as a single item."
+      )
+
       process_items_in_parallel(flow, flow_id, [batch_items], opts)
     end
   end
@@ -159,7 +162,8 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
         case node.prep_async(state) do
           {:ok, items} -> items
           {:error, _reason} -> []
-          other -> other  # Handle unexpected return values
+          # Handle unexpected return values
+          other -> other
         end
 
       # For regular nodes
@@ -167,7 +171,8 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
         case prepare_batch_items(node, state) do
           {:ok, items} -> items
           {:error, _reason} -> []
-          other -> other  # Handle unexpected return values
+          # Handle unexpected return values
+          other -> other
         end
     end
   end
@@ -186,7 +191,7 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
     rescue
       error ->
         Logger.error("Error in batch preparation: #{inspect(error)}")
-        {:error, {:batch_prep_failed, error}}
+        {:error, %{context: :async_parallel_batch_batch_prep, error: error}}
     end
   end
 
@@ -244,23 +249,26 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
       nil ->
         # No next node, return the final state
         {:ok, final_state}
-        
+
       next_node ->
         # Remove the _next_node key from the state
         clean_state = Map.delete(final_state, :_next_node)
-        
+
         # Update the state storage with the clean state
         PocketFlex.StateStorage.update_state(flow_id, clean_state)
-        
+
         # Continue the flow execution with the next node
         case PocketFlex.Flow.run_from_node(flow, next_node, clean_state) do
           {:ok, updated_final_state} ->
             # Update the state storage with the final state
             PocketFlex.StateStorage.update_state(flow_id, updated_final_state)
             {:ok, updated_final_state}
-            
+
           {:error, reason} = error ->
-            Logger.error("Error continuing flow after parallel batch processing: #{inspect(reason)}")
+            Logger.error(
+              "Error continuing flow after parallel batch processing: #{inspect(reason)}"
+            )
+
             error
         end
     end
@@ -275,28 +283,31 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
         case PocketFlex.StateStorage.merge_state(flow_id, updated_state) do
           {:error, reason} ->
             Logger.error("Failed to merge state for item #{inspect(item)}: #{inspect(reason)}")
-            {:error, :state_merge_failed}
+            {:error, %{context: :async_parallel_batch_state_merge, error: reason}}
 
           merged_state ->
             # Get the next node based on the action
             next_node = PocketFlex.Flow.get_next_node(flow, flow.start_node, action)
-            
+
             # Store the next node in the state for later processing
             if next_node do
               # Update the state with the next node information
-              PocketFlex.StateStorage.update_state(flow_id, Map.put(merged_state, :_next_node, next_node))
+              PocketFlex.StateStorage.update_state(
+                flow_id,
+                Map.put(merged_state, :_next_node, next_node)
+              )
             end
-            
+
             {:ok, merged_state}
         end
 
       {:error, reason} ->
         Logger.error("Error processing item #{inspect(item)}: #{inspect(reason)}")
-        {:error, reason}
+        {:error, %{context: :async_parallel_batch_item_processing, error: reason}}
     end
   rescue
     error ->
       Logger.error("Unexpected error processing item #{inspect(item)}: #{inspect(error)}")
-      {:error, {:unexpected_error, error}}
+      {:error, %{context: :async_parallel_batch_unexpected_error, error: error}}
   end
 end

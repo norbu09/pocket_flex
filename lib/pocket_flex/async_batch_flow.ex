@@ -77,7 +77,7 @@ defmodule PocketFlex.AsyncBatchFlow do
 
         # Return the error
         error
-        
+
       shared_state when is_map(shared_state) ->
         # Try to execute the batch flow with the shared state directly
         case execute_batch_flow(flow, flow_id, shared_state) do
@@ -87,13 +87,13 @@ defmodule PocketFlex.AsyncBatchFlow do
               end_time: DateTime.utc_now(),
               result: :success
             })
-            
+
             # Clean up state storage
             PocketFlex.StateStorage.cleanup(flow_id)
-            
+
             # Return success
             {:ok, final_state}
-            
+
           {:error, reason} = error ->
             # Complete monitoring with failed status
             ErrorHandler.complete_monitoring(flow_id, :failed, %{
@@ -101,10 +101,10 @@ defmodule PocketFlex.AsyncBatchFlow do
               result: :error,
               error: reason
             })
-            
+
             # Clean up state storage
             PocketFlex.StateStorage.cleanup(flow_id)
-            
+
             # Return the error
             error
         end
@@ -189,7 +189,7 @@ defmodule PocketFlex.AsyncBatchFlow do
     rescue
       error ->
         Logger.error("Error in batch preparation: #{inspect(error)}")
-        {:error, error}
+        {:error, %{context: :async_batch_batch_prep, error: error}}
     end
   end
 
@@ -238,22 +238,22 @@ defmodule PocketFlex.AsyncBatchFlow do
       {:ok, action, updated_state} ->
         # Update the state for this item
         update_item_state(flow_id, item, updated_state)
-        
+
         # Get the next node based on the action
         next_node = PocketFlex.Flow.get_next_node(flow, flow.start_node, action)
-        
+
         # If there's a next node, continue the flow execution
         if next_node do
           # Get the latest state from storage
           current_state = PocketFlex.StateStorage.get_state(flow_id)
-          
+
           # Run the next node with the current state
           case PocketFlex.Flow.run_from_node(flow, next_node, current_state) do
             {:ok, final_state} ->
               # Update the state storage with the final state
               PocketFlex.StateStorage.update_state(flow_id, final_state)
               {:ok, final_state}
-              
+
             {:error, reason} = error ->
               Logger.error("Error continuing flow after batch processing: #{inspect(reason)}")
               error
@@ -264,12 +264,12 @@ defmodule PocketFlex.AsyncBatchFlow do
 
       {:error, reason} ->
         Logger.error("Error processing item #{inspect(item)}: #{inspect(reason)}")
-        {:error, reason}
+        {:error, %{context: :async_batch_item_processing, error: reason}}
     end
   rescue
     error ->
       Logger.error("Unexpected error processing item #{inspect(item)}: #{inspect(error)}")
-      {:error, error}
+      {:error, %{context: :async_batch_item_processing, error: error}}
   end
 
   # Update the state for a processed item

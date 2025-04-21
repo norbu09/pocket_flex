@@ -15,7 +15,27 @@ defmodule PocketFlex.NodeMacros do
       def prep(_shared), do: nil
 
       @impl true
-      def post(shared, _prep_res, exec_res), do: {"default", shared}
+      def post(shared, _prep_res, exec_res) do
+        case exec_res do
+          {action, state} when is_atom(action) or is_binary(action) ->
+            {action, state}
+
+          {:ok, action, state} when (is_atom(action) or is_binary(action)) and is_map(state) ->
+            {action, state}
+
+          {:ok, state} when is_map(state) ->
+            {"default", state}
+
+          {:ok, value} when is_map(shared) ->
+            {"default", shared}
+
+          value when is_map(shared) ->
+            {"default", shared}
+
+          other ->
+            {"default", other}
+        end
+      end
 
       @impl true
       def exec_fallback(_prep_res, exception), do: raise(exception)

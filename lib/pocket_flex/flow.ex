@@ -135,17 +135,27 @@ defmodule PocketFlex.Flow do
     # Convert string action to atom if needed for backward compatibility
     action = if is_binary(action), do: String.to_atom(action), else: action
 
-    case get_in(flow.connections, [current_node, action]) do
+    # Get connections for the current node
+    node_conns = get_in(flow.connections, [current_node]) || %{}
+
+    # Try specific action, fallback to default if not found
+    case Map.get(node_conns, action) do
       nil ->
-        if map_size(get_in(flow.connections, [current_node]) || %{}) > 0 do
-          require Logger
+        case Map.get(node_conns, :default) do
+          nil ->
+            if map_size(node_conns) > 0 do
+              require Logger
 
-          Logger.warning(
-            "Flow ends: '#{action}' not found in #{inspect(Map.keys(get_in(flow.connections, [current_node])))}"
-          )
+              Logger.warning(
+                "Flow ends: '#{action}' not found in #{inspect(Map.keys(node_conns))}"
+              )
+            end
+
+            nil
+
+          next_node ->
+            next_node
         end
-
-        nil
 
       next_node ->
         next_node

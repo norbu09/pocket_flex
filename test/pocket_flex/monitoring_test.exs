@@ -1,8 +1,30 @@
 defmodule PocketFlex.MonitoringTest do
-  use ExUnit.Case
-  require Logger
-
+  use ExUnit.Case, async: false
   alias PocketFlex.Monitoring
+
+  setup do
+    # Robustly clear ETS table before each test
+    try do
+      :ets.delete(:pocket_flex_shared_state)
+    rescue
+      _ -> :ok
+    end
+
+    case PocketFlex.StateStorage.ETS.start_link(nil) do
+      {:ok, _} ->
+        :ok
+
+      {:error, {:already_started, _}} ->
+        :ok
+
+      other ->
+        IO.inspect(other, label: "ETS.start_link/1 unexpected result")
+        :ok
+    end
+
+    PocketFlex.StateStorage.ETS.clear_table()
+    :ok
+  end
 
   # Define a simple test flow and nodes
   defmodule TestNode1 do
@@ -40,106 +62,110 @@ defmodule PocketFlex.MonitoringTest do
   describe "flow monitoring" do
     test "start_monitoring initializes monitoring state", %{flow: flow, flow_id: flow_id} do
       initial_state = %{test: true}
-      
+
       # Start monitoring
       :ok = Monitoring.start_monitoring(flow_id, flow, initial_state)
-      
+
       # Get the monitoring state
       monitor_state = Monitoring.get_monitoring(flow_id)
-      
+
       # Verify the monitoring state was initialized correctly
+      assert Map.has_key?(monitor_state, :status)
       assert monitor_state.status == :running
       assert monitor_state.current_node == flow.start_node
       assert monitor_state.execution_path == []
       assert monitor_state.errors == []
       assert monitor_state.metadata.flow_id == flow_id
       assert monitor_state.initial_state == initial_state
-      
+
       # Clean up
       Monitoring.cleanup_monitoring(flow_id)
     end
 
     test "update_monitoring updates the monitoring state", %{flow: flow, flow_id: flow_id} do
       initial_state = %{test: true}
-      
+
       # Start monitoring
       :ok = Monitoring.start_monitoring(flow_id, flow, initial_state)
-      
+
       # Update monitoring with a new node and status
       :ok = Monitoring.update_monitoring(flow_id, TestNode2, :processing, %{custom: "metadata"})
-      
+
       # Get the updated monitoring state
       monitor_state = Monitoring.get_monitoring(flow_id)
-      
+
       # Verify the monitoring state was updated correctly
+      assert Map.has_key?(monitor_state, :status)
       assert monitor_state.status == :processing
       assert monitor_state.current_node == TestNode2
       assert monitor_state.execution_path == [TestNode2]
       assert Map.get(monitor_state.metadata, :custom) == "metadata"
-      
+
       # Clean up
       Monitoring.cleanup_monitoring(flow_id)
     end
 
     test "record_error adds an error to the monitoring state", %{flow: flow, flow_id: flow_id} do
       initial_state = %{test: true}
-      
+
       # Start monitoring
       :ok = Monitoring.start_monitoring(flow_id, flow, initial_state)
-      
+
       # Record an error
       error = "Test error"
       :ok = Monitoring.record_error(flow_id, error, TestNode1)
-      
+
       # Get the updated monitoring state
       monitor_state = Monitoring.get_monitoring(flow_id)
-      
+
       # Verify the error was recorded correctly
+      assert Map.has_key?(monitor_state, :status)
       assert monitor_state.status == :error
       assert length(monitor_state.errors) == 1
       assert hd(monitor_state.errors).error == error
       assert hd(monitor_state.errors).node == TestNode1
       assert monitor_state.last_error.error == error
-      
+
       # Clean up
       Monitoring.cleanup_monitoring(flow_id)
     end
 
     test "complete_monitoring finalizes the monitoring state", %{flow: flow, flow_id: flow_id} do
       initial_state = %{test: true}
-      
+
       # Start monitoring
       :ok = Monitoring.start_monitoring(flow_id, flow, initial_state)
-      
+
       # Complete monitoring
       result = %{final: true}
       :ok = Monitoring.complete_monitoring(flow_id, :completed, result)
-      
+
       # Get the updated monitoring state
       monitor_state = Monitoring.get_monitoring(flow_id)
-      
+
       # Verify the monitoring state was completed correctly
+      assert Map.has_key?(monitor_state, :status)
       assert monitor_state.status == :completed
       assert monitor_state.result == result
       assert monitor_state.end_time != nil
       assert monitor_state.duration_ms != nil
-      
+
       # Clean up
       Monitoring.cleanup_monitoring(flow_id)
     end
 
     test "cleanup_monitoring removes the monitoring state", %{flow: flow, flow_id: flow_id} do
       initial_state = %{test: true}
-      
+
       # Start monitoring
       :ok = Monitoring.start_monitoring(flow_id, flow, initial_state)
-      
+
       # Verify the monitoring state exists
-      assert Monitoring.get_monitoring(flow_id) != %{}
-      
+      assert Map.has_key?(Monitoring.get_monitoring(flow_id), :status)
+
       # Clean up
       :ok = Monitoring.cleanup_monitoring(flow_id)
-      
+
       # Verify the monitoring state was removed
       assert Monitoring.get_monitoring(flow_id) == %{}
     end
