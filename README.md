@@ -1,6 +1,6 @@
 # PocketFlex
 
-PocketFlex is an Elixir implementation of the PocketFlow agent framework. It provides a flexible system for creating flows of connected nodes, where each node performs a specific task and passes data to the next node.
+PocketFlex is an Elixir implementation of the [PocketFlow](https://github.com/The-Pocket/PocketFlow) agent framework. It provides a flexible system for creating flows of connected nodes, where each node performs a specific task and passes data to the next node.
 
 ## What's New (2025-04)
 
@@ -196,7 +196,7 @@ config :pocket_flex, :state_table, :my_custom_state_table
 
 ## Documentation
 
-- Full API docs: https://hexdocs.pm/pocket_flex/
+- Full API docs: <https://hexdocs.pm/pocket_flex/>
 - Guides: `guides/` directory for DSL, execution, and state storage
 
 ## License
