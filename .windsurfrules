@@ -10,3 +10,4 @@
 - for documentation please use the hex_docs package
 - for libraries lease use doc tests where possible
 - run mix credo to check if anything needs re-factoring
+- for error handling always prefer ok/error tuples (the erlang way) to try/catch blocks

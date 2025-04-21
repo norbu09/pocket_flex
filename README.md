@@ -189,7 +189,7 @@ PocketFlex is an Elixir implementation of the PocketFlow agent framework, focusi
 - **Node System**
   - `PocketFlex.Node`: Behavior module for defining nodes with lifecycle methods (prep, exec, post)
   - `PocketFlex.NodeMacros`: Macros for simplifying node implementation with default implementations
-  - `PocketFlex.NodeRunner`: Handles node execution with retry logic and error handling
+  - Internal node execution system with retry logic and error handling
 
 - **Flow Management**
   - `PocketFlex.Flow`: Manages node connections and flow execution

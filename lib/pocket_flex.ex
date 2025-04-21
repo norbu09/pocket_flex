@@ -1,8 +1,8 @@
 defmodule PocketFlex do
   @moduledoc """
-  PocketFlex is an Elixir implementation of the PocketFlow agent framework.
+  PocketFlex is an Elixir implementation of a flexible, node-based processing framework.
 
-  It provides a flexible system for creating flows of connected nodes, where each node 
+  It provides a system for creating flows of connected nodes, where each node 
   performs a specific task and passes data to the next node.
 
   ## Features
@@ -13,6 +13,27 @@ defmodule PocketFlex do
   - **Batch Processing**: Process lists of items sequentially or in parallel
   - **Clean DSL**: Create flows with an intuitive syntax
   - **Retry Logic**: Built-in support for retrying failed operations
+  - **Efficient State Management**: Simplified state storage using a single ETS table
+
+  ## State Management
+
+  PocketFlex uses a shared state storage system to maintain flow state across nodes:
+
+  ```elixir
+  # Get the current state for a flow
+  state = PocketFlex.StateStorage.get_state(flow_id)
+
+  # Update the state for a flow
+  PocketFlex.StateStorage.update_state(flow_id, new_state)
+
+  # Merge updates into the current state
+  PocketFlex.StateStorage.merge_state(flow_id, state_updates)
+
+  # Clean up the state when done
+  PocketFlex.StateStorage.cleanup(flow_id)
+  ```
+
+  For more details, see the [State Storage Guide](state_storage.html).
 
   ## Basic Usage
 
@@ -50,57 +71,68 @@ defmodule PocketFlex do
     
     @impl true
     def post(shared, _prep_res, exec_res) do
-      {nil, Map.put(shared, "answer", exec_res)}
+      {:default, Map.put(shared, "answer", exec_res)}
     end
   end
   ```
 
-  ### Creating a Flow
+  ### Creating and Running a Flow
 
   ```elixir
-  defmodule MyApp.Flows.QAFlow do
-    use PocketFlex.DSL
-    
-    def create do
-      # Create node references
-      get_question = MyApp.Nodes.GetQuestionNode
-      answer = MyApp.Nodes.AnswerNode
+  # Create a new flow
+  flow =
+    PocketFlex.Flow.new()
+    |> PocketFlex.Flow.add_node(MyApp.Nodes.GetQuestionNode)
+    |> PocketFlex.Flow.add_node(MyApp.Nodes.AnswerNode)
+    |> PocketFlex.Flow.connect(MyApp.Nodes.GetQuestionNode, MyApp.Nodes.AnswerNode)
+    |> PocketFlex.Flow.start(MyApp.Nodes.GetQuestionNode)
+
+  # Run the flow
+  {:ok, final_state} = PocketFlex.Flow.run(flow, %{})
+
+  # Access the result
+  IO.puts(final_state["answer"])
+  ```
+
+  ### Using the DSL
+
+  ```elixir
+  import PocketFlex.DSL
+
+  flow =
+    flow do
+      node GetQuestionNode
+      node AnswerNode
       
-      # Define connections
-      connections = [
-        get_question >>> answer
-      ]
+      GetQuestionNode -> AnswerNode
       
-      # Create and configure the flow
-      Flow.new()
-      |> Flow.start(get_question)
-      |> apply_connections(connections)
+      start_with GetQuestionNode
     end
-  end
+
+  {:ok, final_state} = PocketFlex.Flow.run(flow, %{})
   ```
 
-  ### Running a Flow
+  ### Async Batch Processing
 
   ```elixir
-  # Create the flow
-  flow = MyApp.Flows.QAFlow.create()
+  # Create a flow with batch processing nodes
+  flow =
+    PocketFlex.Flow.new()
+    |> PocketFlex.Flow.add_node(MyApp.Nodes.BatchProcessorNode)
+    |> PocketFlex.Flow.add_node(MyApp.Nodes.ResultAggregatorNode)
+    |> PocketFlex.Flow.connect(MyApp.Nodes.BatchProcessorNode, MyApp.Nodes.ResultAggregatorNode)
+    |> PocketFlex.Flow.start(MyApp.Nodes.BatchProcessorNode)
 
-  # Run the flow with an initial shared state
-  {:ok, result} = PocketFlex.run(flow, %{})
+  # Initial state with items to process
+  initial_state = %{"items" => [1, 2, 3, 4, 5]}
 
-  # Access the results
-  IO.puts("Question: \#{result["question"]}")
-  IO.puts("Answer: \#{result["answer"]}")
+  # Run the flow asynchronously
+  task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, initial_state)
+
+  # Wait for the result
+  {:ok, final_state} = Task.await(task)
   ```
 
-  ## Advanced Features
-
-  For more advanced features, see the documentation for:
-
-  - `PocketFlex.AsyncNode` - For asynchronous node execution
-  - `PocketFlex.BatchNode` - For batch processing
-  - `PocketFlex.AsyncBatchNode` - For asynchronous batch processing
-  - `PocketFlex.DSL` - For the domain-specific language for connecting nodes
   """
 
   @doc """
@@ -114,45 +146,9 @@ defmodule PocketFlex do
     A tuple containing:
     - :ok and the final shared state, or
     - :error and an error reason
-    
-  ## Examples
-
-  ```elixir
-  {:ok, result} = PocketFlex.run(flow, %{"input" => "Hello"})
-  ```
   """
   @spec run(PocketFlex.Flow.t(), map()) :: {:ok, map()} | {:error, term()}
   defdelegate run(flow, shared), to: PocketFlex.Flow
-
-  @doc """
-  Runs a flow asynchronously with the given shared state.
-
-  ## Parameters
-    - flow: The flow to run
-    - shared: The initial shared state
-    
-  ## Returns
-    A Task that will resolve to:
-    - {:ok, final_shared_state}
-    - {:error, reason}
-  """
-  @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
-  defdelegate run_async(flow, shared), to: PocketFlex.AsyncFlow
-
-  @doc """
-  Orchestrates the asynchronous execution of a flow with async nodes.
-
-  ## Parameters
-    - flow: The flow to run
-    - shared: The initial shared state
-    
-  ## Returns
-    A tuple containing:
-    - :ok and the final shared state, or
-    - :error and an error reason
-  """
-  @spec orchestrate_async(PocketFlex.Flow.t(), map()) :: {:ok, map()} | {:error, term()}
-  defdelegate orchestrate_async(flow, shared), to: PocketFlex.AsyncFlow
 
   @doc """
   Runs a batch flow with the given shared state.
@@ -173,9 +169,9 @@ defmodule PocketFlex do
   defdelegate run_batch(flow, shared), to: PocketFlex.BatchFlow
 
   @doc """
-  Runs a batch flow with the given shared state, processing items in parallel.
+  Runs a parallel batch flow with the given shared state.
 
-  The batch flow expects the start node's prep function to return a list of items.
+  The parallel batch flow expects the start node's prep function to return a list of items.
   Each item will be processed through the flow in parallel.
 
   ## Parameters
@@ -201,17 +197,17 @@ defmodule PocketFlex do
     - shared: The initial shared state
     
   ## Returns
-    A Task that will resolve to:
-    - {:ok, final_shared_state}
-    - {:error, reason}
+    A Task that will resolve to either:
+      * `{:ok, final_state}` - Success with the final state
+      * `{:error, reason}` - Error with the reason
   """
   @spec run_async_batch(PocketFlex.Flow.t(), map()) :: Task.t()
   defdelegate run_async_batch(flow, shared), to: PocketFlex.AsyncBatchFlow
 
   @doc """
-  Runs a batch flow asynchronously with the given shared state, processing items in parallel.
+  Runs a parallel batch flow asynchronously with the given shared state.
 
-  The batch flow expects the start node's prep function to return a list of items.
+  The parallel batch flow expects the start node's prep function to return a list of items.
   Each item will be processed through the flow in parallel and asynchronously.
 
   ## Parameters
@@ -219,10 +215,29 @@ defmodule PocketFlex do
     - shared: The initial shared state
     
   ## Returns
-    A Task that will resolve to:
-    - {:ok, final_shared_state}
-    - {:error, reason}
+    A Task that will resolve to either:
+      * `{:ok, final_state}` - Success with the final state
+      * `{:error, reason}` - Error with the reason
   """
   @spec run_async_parallel_batch(PocketFlex.Flow.t(), map()) :: Task.t()
   defdelegate run_async_parallel_batch(flow, shared), to: PocketFlex.AsyncParallelBatchFlow
+  
+  @doc """
+  Runs a flow asynchronously with the given shared state.
+
+  This function is for compatibility with AsyncNode modules.
+
+  ## Parameters
+    - flow: The flow to run
+    - shared: The initial shared state
+    
+  ## Returns
+    A Task that will resolve to either:
+      * `{:ok, final_state}` - Success with the final state
+      * `{:error, reason}` - Error with the reason
+  """
+  @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
+  def run_async(flow, shared) do
+    Task.async(fn -> PocketFlex.AsyncFlow.orchestrate_async(flow, shared) end)
+  end
 end

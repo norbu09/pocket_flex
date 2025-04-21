@@ -53,7 +53,7 @@ defmodule PocketFlex.NodeRunner do
           if function_exported?(node, :exec_fallback, 2) do
             node.exec_fallback(prep_result, e)
           else
-            raise e
+            reraise e, __STACKTRACE__
           end
         end
     end

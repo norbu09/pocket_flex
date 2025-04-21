@@ -383,7 +383,7 @@ defmodule PocketFlex.Examples.ComprehensiveExample do
   """
   def run_async_example(flow, input) do
     shared = %{"input" => input}
-    PocketFlex.run_async(flow, shared)
+    PocketFlex.run_async_batch(flow, shared)
   end
 
   @doc """

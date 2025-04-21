@@ -68,7 +68,7 @@ defmodule PocketFlex.AsyncTest do
 
       @impl PocketFlex.AsyncNode
       def post_async(shared, _prep_result, exec_result) do
-        {:ok, {"default", Map.put(shared, "processed", exec_result)}}
+        {:ok, {:default, Map.put(shared, "processed", exec_result)}}
       end
     end
 
@@ -93,7 +93,7 @@ defmodule PocketFlex.AsyncTest do
 
       @impl PocketFlex.AsyncNode
       def post_async(shared, _prep_result, exec_result) do
-        {:ok, {nil, Map.put(shared, "result", exec_result)}}
+        {:ok, {:default, Map.put(shared, "result", exec_result)}}
       end
     end
 

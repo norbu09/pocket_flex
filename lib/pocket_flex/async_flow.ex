@@ -16,9 +16,9 @@ defmodule PocketFlex.AsyncFlow do
     - state: The initial shared state
     
   ## Returns
-    A Task that will resolve to:
-    - {:ok, final_shared_state}
-    - {:error, reason}
+    A Task that will resolve to either:
+      * `{:ok, final_state}` - Success with the final state
+      * `{:error, reason}` - Error with the reason
   """
   @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
   def run_async(flow, state) do
@@ -33,9 +33,9 @@ defmodule PocketFlex.AsyncFlow do
     - state: The initial shared state
     
   ## Returns
-    A tuple containing:
-    - :ok and the final shared state, or
-    - :error and an error reason
+    A tuple containing either:
+      * `{:ok, final_state}` - Success with the final state
+      * `{:error, reason}` - Error with the reason
   """
   @spec orchestrate_async(PocketFlex.Flow.t(), map()) :: {:ok, map()} | {:error, term()}
   def orchestrate_async(flow, state) do

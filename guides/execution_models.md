@@ -52,30 +52,37 @@ Asynchronous execution allows nodes to perform operations without blocking the f
 defmodule MyApp.Nodes.AsyncNode do
   use PocketFlex.AsyncNode
   
-  def prep(shared) do
-    Map.get(shared, "input")
+  def prep_async(shared) do
+    {:ok, Map.get(shared, "input")}
   end
   
   def exec_async(input) do
-    # Simulate an async operation (e.g., API call)
-    Task.async(fn ->
+    # Create a task to perform async operation
+    task = Task.async(fn ->
       Process.sleep(100) # Simulate delay
-      {:ok, String.upcase(input)}
+      String.upcase(input)
     end)
-    |> Task.await()
+    
+    # Return the task for later awaiting
+    {:ok, task}
   end
   
-  def post(shared, _prep_result, {:ok, result}) do
-    {:success, Map.put(shared, "async_result", result)}
+  def post_async(shared, _prep_result, exec_result) do
+    # Use atoms for control flow, not strings
+    {:ok, {:default, Map.put(shared, "async_result", exec_result)}}
   end
 end
 
 # Create and run an async flow
 flow = Flow.new()
        |> Flow.start(MyApp.Nodes.AsyncNode)
-       |> Flow.connect(MyApp.Nodes.AsyncNode, MyApp.Nodes.NextNode, :success)
+       |> Flow.connect(MyApp.Nodes.AsyncNode, MyApp.Nodes.NextNode)
 
-{:ok, result} = PocketFlex.run_async(flow, %{"input" => "hello"})
+# Run the flow asynchronously
+task = PocketFlex.run_async(flow, %{"input" => "hello"})
+
+# Wait for the result
+{:ok, result} = Task.await(task)
 ```
 
 ## Batch Processing
@@ -95,7 +102,8 @@ defmodule MyApp.Nodes.BatchNode do
   use PocketFlex.BatchNode
   
   def prep(shared) do
-    Map.get(shared, "items", [])
+    # Return a list of items to process
+    {:ok, Map.get(shared, "items", [])}
   end
   
   def exec_item(item) do
@@ -133,7 +141,8 @@ defmodule MyApp.Nodes.ParallelBatchNode do
   use PocketFlex.BatchNode
   
   def prep(shared) do
-    Map.get(shared, "items", [])
+    # Return a list of items to process in parallel
+    {:ok, Map.get(shared, "items", [])}
   end
   
   def exec_item(item) do
@@ -168,19 +177,17 @@ Asynchronous batch processing combines the benefits of asynchronous execution an
 
 ```elixir
 defmodule MyApp.Nodes.AsyncBatchNode do
-  use PocketFlex.AsyncBatchNode
+  use PocketFlex.BatchNode
   
   def prep(shared) do
-    Map.get(shared, "items", [])
+    # Return a list of items to process asynchronously
+    {:ok, Map.get(shared, "items", [])}
   end
   
-  def exec_item_async(item) do
-    # Process a single item asynchronously
-    Task.async(fn ->
-      Process.sleep(50) # Simulate delay
-      {:ok, String.upcase(item)}
-    end)
-    |> Task.await()
+  def exec_item(item) do
+    # Process a single item 
+    Process.sleep(50) # Simulate delay
+    String.upcase(item)
   end
   
   def post(shared, _prep_result, exec_result) do
@@ -193,7 +200,11 @@ flow = Flow.new()
        |> Flow.start(MyApp.Nodes.AsyncBatchNode)
        |> Flow.connect(MyApp.Nodes.AsyncBatchNode, MyApp.Nodes.NextNode, :success)
 
-{:ok, result} = PocketFlex.run_async_batch(flow, %{"items" => ["a", "b", "c"]})
+# Run the batch flow asynchronously
+task = PocketFlex.run_async_batch(flow, %{"items" => ["a", "b", "c"]})
+
+# Wait for the result
+{:ok, result} = Task.await(task)
 ```
 
 ## Asynchronous Parallel Batch Processing
@@ -210,19 +221,17 @@ This model combines asynchronous execution with parallel batch processing, provi
 
 ```elixir
 defmodule MyApp.Nodes.AsyncParallelBatchNode do
-  use PocketFlex.AsyncBatchNode
+  use PocketFlex.BatchNode
   
   def prep(shared) do
-    Map.get(shared, "items", [])
+    # Return a list of items to process in parallel asynchronously
+    {:ok, Map.get(shared, "items", [])}
   end
   
-  def exec_item_async(item) do
-    # Process a single item asynchronously (will be executed in parallel)
-    Task.async(fn ->
-      Process.sleep(50) # Simulate delay
-      {:ok, String.upcase(item)}
-    end)
-    |> Task.await()
+  def exec_item(item) do
+    # Process a single item (will be executed in parallel)
+    Process.sleep(50) # Simulate delay
+    String.upcase(item)
   end
   
   def post(shared, _prep_result, exec_result) do
@@ -235,7 +244,31 @@ flow = Flow.new()
        |> Flow.start(MyApp.Nodes.AsyncParallelBatchNode)
        |> Flow.connect(MyApp.Nodes.AsyncParallelBatchNode, MyApp.Nodes.NextNode, :success)
 
-{:ok, result} = PocketFlex.run_async_parallel_batch(flow, %{"items" => ["a", "b", "c"]})
+# Run the parallel batch flow asynchronously
+task = PocketFlex.run_async_parallel_batch(flow, %{"items" => ["a", "b", "c"]})
+
+# Wait for the result
+{:ok, result} = Task.await(task)
+```
+
+## Error Handling
+
+All execution models in PocketFlex now use Erlang-style error tuples for consistent error handling:
+
+```elixir
+# Success case
+{:ok, result} = Task.await(task)
+
+# Error handling
+case Task.await(task) do
+  {:ok, result} ->
+    # Process successful result
+    IO.puts("Success: #{inspect(result)}")
+    
+  {:error, reason} ->
+    # Handle error
+    Logger.error("Flow failed: #{inspect(reason)}")
+end
 ```
 
 ## Choosing the Right Execution Model
@@ -259,14 +292,18 @@ Here's a quick guide to help you choose the right execution model for your use c
 
 3. **Resource Constraints**: Be mindful of system resources when using parallel processing.
 
-4. **Error Handling**: Implement proper error handling for each execution model.
+4. **Error Handling**: Use Erlang-style error tuples (`{:ok, result}` and `{:error, reason}`) for consistent error handling.
 
-5. **Testing**: Test each execution model thoroughly to ensure correct behavior.
+5. **State Management**: Always clean up state after flow completion to prevent memory leaks.
 
-6. **Monitoring**: Monitor performance to determine if a different execution model would be more efficient.
+6. **Testing**: Test each execution model thoroughly to ensure correct behavior.
 
-7. **Idempotency**: Ensure operations are idempotent when using asynchronous processing to handle potential retries.
+7. **Monitoring**: Use Logger for debugging and monitoring flow execution.
+
+8. **Idempotency**: Ensure operations are idempotent when using asynchronous processing to handle potential retries.
+
+9. **Action Names**: Always use atoms for flow actions (e.g., `:default`, `:success`, `:error`), not strings.
 
 ## Conclusion
 
-PocketFlex provides a flexible set of execution models to handle a wide range of processing requirements. By choosing the right model for your use case, you can optimize performance while maintaining code clarity and maintainability.
+PocketFlex provides a flexible set of execution models to handle a wide range of processing requirements. By choosing the right model for your use case, you can optimize performance while maintaining code clarity and maintainability. The simplified state storage system and improved error handling make it easier to build robust and efficient flows.

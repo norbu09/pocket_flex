@@ -44,7 +44,37 @@ defmodule PocketFlex.MixProject do
     [
       main: "PocketFlex",
       source_url: "https://github.com/yourusername/pocket_flex",
-      extras: ["README.md"]
+      extras: [
+        "README.md",
+        "guides/state_storage.md",
+        "guides/dsl_guide.md",
+        "guides/execution_models.md"
+      ],
+      groups_for_extras: [
+        Guides: ~r/guides\/.?/
+      ],
+      groups_for_modules: [
+        Core: [
+          PocketFlex,
+          PocketFlex.Flow,
+          PocketFlex.Node
+        ],
+        "State Storage": [
+          PocketFlex.StateStorage,
+          PocketFlex.StateStorage.ETS
+        ],
+        "Async Processing": [
+          PocketFlex.AsyncNode,
+          PocketFlex.AsyncBatchNode,
+          PocketFlex.AsyncParallelBatchNode,
+          PocketFlex.AsyncBatchFlow,
+          PocketFlex.AsyncParallelBatchFlow
+        ],
+        DSL: [
+          PocketFlex.DSL
+        ],
+        Examples: ~r/PocketFlex\.Examples\..?/
+      ]
     ]
   end
 end

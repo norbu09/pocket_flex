@@ -59,15 +59,7 @@ defmodule PocketFlex.AsyncBatchNode do
       def exec_async(items) when is_list(items) do
         task =
           Task.async(fn ->
-            Enum.map(items, fn item ->
-              {:ok, result} = exec_item_async(item)
-
-              if is_struct(result, Task) do
-                Task.await(result)
-              else
-                result
-              end
-            end)
+            process_items_async(items)
           end)
 
         {:ok, task}
@@ -76,16 +68,29 @@ defmodule PocketFlex.AsyncBatchNode do
       def exec_async(item) do
         task =
           Task.async(fn ->
-            {:ok, result} = exec_item_async(item)
-
-            if is_struct(result, Task) do
-              Task.await(result)
-            else
-              result
-            end
+            process_item_async(item)
           end)
 
         {:ok, task}
+      end
+
+      defp process_items_async(items) do
+        Enum.map(items, fn item ->
+          process_item_async(item)
+        end)
+      end
+
+      defp process_item_async(item) do
+        {:ok, result} = exec_item_async(item)
+        await_result_if_task(result)
+      end
+
+      defp await_result_if_task(result) do
+        if is_struct(result, Task) do
+          Task.await(result)
+        else
+          result
+        end
       end
 
       @impl PocketFlex.AsyncNode
@@ -135,28 +140,13 @@ defmodule PocketFlex.AsyncParallelBatchNode do
 
       @impl PocketFlex.Node
       def exec(items) when is_list(items) do
-        tasks =
-          Enum.map(items, fn item ->
-            {:ok, result} = exec_item_async(item)
-
-            if is_struct(result, Task) do
-              result
-            else
-              Task.async(fn -> result end)
-            end
-          end)
-
+        tasks = create_tasks_for_items(items)
         Task.await_many(tasks, :infinity)
       end
 
       def exec(item) do
         {:ok, result} = exec_item_async(item)
-
-        if is_struct(result, Task) do
-          Task.await(result)
-        else
-          result
-        end
+        await_result_if_task(result)
       end
 
       @impl PocketFlex.Node
@@ -173,18 +163,7 @@ defmodule PocketFlex.AsyncParallelBatchNode do
       def exec_async(items) when is_list(items) do
         task =
           Task.async(fn ->
-            tasks =
-              Enum.map(items, fn item ->
-                {:ok, result} = exec_item_async(item)
-
-                if is_struct(result, Task) do
-                  result
-                else
-                  Task.async(fn -> result end)
-                end
-              end)
-
-            Task.await_many(tasks, :infinity)
+            process_items_in_parallel(items)
           end)
 
         {:ok, task}
@@ -193,16 +172,43 @@ defmodule PocketFlex.AsyncParallelBatchNode do
       def exec_async(item) do
         task =
           Task.async(fn ->
-            {:ok, result} = exec_item_async(item)
-
-            if is_struct(result, Task) do
-              Task.await(result)
-            else
-              result
-            end
+            process_item_async(item)
           end)
 
         {:ok, task}
+      end
+
+      defp process_items_in_parallel(items) do
+        tasks = create_tasks_for_items(items)
+        Task.await_many(tasks, :infinity)
+      end
+
+      defp create_tasks_for_items(items) do
+        Enum.map(items, fn item ->
+          {:ok, result} = exec_item_async(item)
+          convert_to_task(result)
+        end)
+      end
+
+      defp convert_to_task(result) do
+        if is_struct(result, Task) do
+          result
+        else
+          Task.async(fn -> result end)
+        end
+      end
+
+      defp process_item_async(item) do
+        {:ok, result} = exec_item_async(item)
+        await_result_if_task(result)
+      end
+
+      defp await_result_if_task(result) do
+        if is_struct(result, Task) do
+          Task.await(result)
+        else
+          result
+        end
       end
 
       @impl PocketFlex.AsyncNode
