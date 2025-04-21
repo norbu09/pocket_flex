@@ -58,24 +58,23 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
     use PocketFlex.NodeMacros
 
     @impl true
-    def exec(shared) do
+    def prep(shared) do
       # Get the fetch results from the shared state
-      results = shared["fetch_results"] || []
+      shared["fetch_results"] || []
+    end
 
+    @impl true
+    def exec(results) do
       # Process each result
-      processed_results =
-        Enum.map(results, fn result ->
-          Logger.info("Processing content from: #{result.url}")
+      Enum.map(results, fn result ->
+        Logger.info("Processing content from: #{result.url}")
 
-          # Simulate processing with random delay
-          Process.sleep(Enum.random(50..100))
+        # Simulate processing with random delay
+        Process.sleep(Enum.random(50..100))
 
-          # Add some processed data
-          Map.put(result, :word_count, String.length(result.body))
-        end)
-
-      # Return the processed results
-      processed_results
+        # Add some processed data
+        Map.put(result, :word_count, String.length(result.body))
+      end)
     end
 
     @impl true
@@ -93,10 +92,13 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
     use PocketFlex.NodeMacros
 
     @impl true
-    def exec(shared) do
+    def prep(shared) do
       # Get the processed results from the shared state
-      processed_results = shared["processed_results"] || []
+      shared["processed_results"] || []
+    end
 
+    @impl true
+    def exec(processed_results) do
       # Aggregate the results
       total_word_count =
         Enum.reduce(processed_results, 0, fn result, acc ->
@@ -149,7 +151,7 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
     flow_id = "async_batch_example_#{:erlang.unique_integer([:positive])}"
 
     # Initialize state storage with the initial shared state
-    PocketFlex.StateStorage.init(flow_id, shared)
+    PocketFlex.StateStorage.update_state(flow_id, shared)
 
     # Run the flow using async batch
     task = PocketFlex.AsyncBatchFlow.run_async_batch(flow, shared)
@@ -159,10 +161,16 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
       {:ok, final_shared} ->
         # Clean up the state
         PocketFlex.StateStorage.cleanup(flow_id)
+        
         # Return the aggregated results
-        {:ok,
-         final_shared["aggregated_results"] ||
-           %{total_urls: 0, total_word_count: 0, average_word_count: 0}}
+        aggregated_results = final_shared["aggregated_results"] || %{
+          total_urls: length(urls),
+          total_word_count: 0,
+          average_word_count: 0.0,
+          timestamp: DateTime.utc_now()
+        }
+        
+        {:ok, aggregated_results}
 
       {:error, reason} ->
         # Clean up the state
@@ -200,7 +208,7 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
     flow_id = "async_parallel_batch_example_#{:erlang.unique_integer([:positive])}"
 
     # Initialize state storage with the initial shared state
-    PocketFlex.StateStorage.init(flow_id, shared)
+    PocketFlex.StateStorage.update_state(flow_id, shared)
 
     # Run the flow using async parallel batch
     task = PocketFlex.AsyncParallelBatchFlow.run_async_parallel_batch(flow, shared)
@@ -210,10 +218,16 @@ defmodule PocketFlex.Examples.AsyncBatchExample do
       {:ok, final_shared} ->
         # Clean up the state
         PocketFlex.StateStorage.cleanup(flow_id)
+        
         # Return the aggregated results
-        {:ok,
-         final_shared["aggregated_results"] ||
-           %{total_urls: 0, total_word_count: 0, average_word_count: 0}}
+        aggregated_results = final_shared["aggregated_results"] || %{
+          total_urls: length(urls),
+          total_word_count: 0,
+          average_word_count: 0.0,
+          timestamp: DateTime.utc_now()
+        }
+        
+        {:ok, aggregated_results}
 
       {:error, reason} ->
         # Clean up the state

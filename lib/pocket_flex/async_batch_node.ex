@@ -16,8 +16,8 @@ defmodule PocketFlex.AsyncBatchNode do
 
       # Default implementations for Node callbacks
       @impl PocketFlex.Node
-      def prep(shared) do
-        {:ok, result} = prep_async(shared)
+      def prep(state) do
+        {:ok, result} = prep_async(state)
         result
       end
 
@@ -46,14 +46,14 @@ defmodule PocketFlex.AsyncBatchNode do
       end
 
       @impl PocketFlex.Node
-      def post(shared, prep_result, exec_result) do
-        {:ok, result} = post_async(shared, prep_result, exec_result)
+      def post(state, prep_result, exec_result) do
+        {:ok, result} = post_async(state, prep_result, exec_result)
         result
       end
 
       # Default implementations for AsyncNode callbacks
       @impl PocketFlex.AsyncNode
-      def prep_async(_shared), do: {:ok, nil}
+      def prep_async(_state), do: {:ok, nil}
 
       @impl PocketFlex.AsyncNode
       def exec_async(items) when is_list(items) do
@@ -89,7 +89,7 @@ defmodule PocketFlex.AsyncBatchNode do
       end
 
       @impl PocketFlex.AsyncNode
-      def post_async(shared, _prep_res, exec_res), do: {:ok, {:default, shared}}
+      def post_async(state, _prep_res, exec_res), do: {:ok, {:default, state}}
 
       # Default implementation for AsyncBatchNode callback
       @impl PocketFlex.AsyncBatchNode
@@ -128,8 +128,8 @@ defmodule PocketFlex.AsyncParallelBatchNode do
 
       # Default implementations for Node callbacks
       @impl PocketFlex.Node
-      def prep(shared) do
-        {:ok, result} = prep_async(shared)
+      def prep(state) do
+        {:ok, result} = prep_async(state)
         result
       end
 
@@ -160,14 +160,14 @@ defmodule PocketFlex.AsyncParallelBatchNode do
       end
 
       @impl PocketFlex.Node
-      def post(shared, prep_result, exec_result) do
-        {:ok, result} = post_async(shared, prep_result, exec_result)
+      def post(state, prep_result, exec_result) do
+        {:ok, result} = post_async(state, prep_result, exec_result)
         result
       end
 
       # Default implementations for AsyncNode callbacks
       @impl PocketFlex.AsyncNode
-      def prep_async(_shared), do: {:ok, nil}
+      def prep_async(_state), do: {:ok, nil}
 
       @impl PocketFlex.AsyncNode
       def exec_async(items) when is_list(items) do
@@ -206,7 +206,7 @@ defmodule PocketFlex.AsyncParallelBatchNode do
       end
 
       @impl PocketFlex.AsyncNode
-      def post_async(shared, _prep_res, exec_res), do: {:ok, {:default, shared}}
+      def post_async(state, _prep_res, exec_res), do: {:ok, {:default, state}}
 
       # Default implementation for AsyncParallelBatchNode callback
       @impl PocketFlex.AsyncParallelBatchNode

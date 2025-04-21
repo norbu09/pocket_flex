@@ -7,9 +7,9 @@ defmodule PocketFlex.AsyncBatchTest do
     use PocketFlex.AsyncBatchNode
 
     @impl true
-    def prep(shared) do
+    def prep(state) do
       # Return a list of items to process
-      shared["items"] || []
+      state["items"] || []
     end
 
     @impl true
@@ -25,10 +25,10 @@ defmodule PocketFlex.AsyncBatchTest do
     end
 
     @impl true
-    def post(shared, _prep_res, results) do
+    def post(state, _prep_res, results) do
       # Store the results in the shared state
-      updated_shared = Map.put(shared, "results", results)
-      {:default, updated_shared}
+      updated_state = Map.put(state, "results", results)
+      {:default, updated_state}
     end
   end
 
@@ -36,9 +36,9 @@ defmodule PocketFlex.AsyncBatchTest do
     use PocketFlex.AsyncParallelBatchNode
 
     @impl true
-    def prep(shared) do
+    def prep(state) do
       # Return a list of items to process
-      shared["items"] || []
+      state["items"] || []
     end
 
     @impl true
@@ -54,10 +54,10 @@ defmodule PocketFlex.AsyncBatchTest do
     end
 
     @impl true
-    def post(shared, _prep_res, results) do
+    def post(state, _prep_res, results) do
       # Store the results in the shared state
-      updated_shared = Map.put(shared, "results", results)
-      {:default, updated_shared}
+      updated_state = Map.put(state, "results", results)
+      {:default, updated_state}
     end
   end
 
@@ -65,19 +65,22 @@ defmodule PocketFlex.AsyncBatchTest do
     use PocketFlex.NodeMacros
 
     @impl true
-    def exec(shared) do
+    def prep(state) do
       # Get the results from the shared state
-      results = shared["results"] || []
+      state["results"] || []
+    end
 
+    @impl true
+    def exec(results) do
       # Sum the results
       Enum.sum(results)
     end
 
     @impl true
-    def post(shared, _prep_res, sum) do
+    def post(state, _prep_res, sum) do
       # Store the sum in the shared state
-      updated_shared = Map.put(shared, "sum", sum)
-      {:default, updated_shared}
+      updated_state = Map.put(state, "sum", sum)
+      {:default, updated_state}
     end
   end
 
@@ -92,15 +95,15 @@ defmodule PocketFlex.AsyncBatchTest do
         |> PocketFlex.Flow.start(TestAsyncBatchNode)
 
       # Initial shared state with items to process
-      shared = %{"items" => [1, 2, 3, 4, 5]}
+      state = %{"items" => [1, 2, 3, 4, 5]}
 
       # Run the flow directly
-      {:ok, final_shared} = PocketFlex.Flow.run(flow, shared)
-
+      {:ok, final_state} = PocketFlex.Flow.run(flow, state)
+      
       # Check the results
-      assert is_list(final_shared["results"])
-      assert Enum.sort(final_shared["results"]) == [2, 4, 6, 8, 10]
-      assert final_shared["sum"] == 30
+      assert is_list(final_state["results"])
+      assert Enum.sort(final_state["results"]) == [2, 4, 6, 8, 10]
+      assert final_state["sum"] == 30
     end
   end
 
@@ -115,15 +118,15 @@ defmodule PocketFlex.AsyncBatchTest do
         |> PocketFlex.Flow.start(TestAsyncParallelBatchNode)
 
       # Initial shared state with items to process
-      shared = %{"items" => [1, 2, 3, 4, 5]}
+      state = %{"items" => [1, 2, 3, 4, 5]}
 
       # Run the flow directly
-      {:ok, final_shared} = PocketFlex.Flow.run(flow, shared)
+      {:ok, final_state} = PocketFlex.Flow.run(flow, state)
 
       # Check the results
-      assert is_list(final_shared["results"])
-      assert Enum.sort(final_shared["results"]) == [3, 6, 9, 12, 15]
-      assert final_shared["sum"] == 45
+      assert is_list(final_state["results"])
+      assert Enum.sort(final_state["results"]) == [3, 6, 9, 12, 15]
+      assert final_state["sum"] == 45
     end
   end
 
@@ -131,6 +134,7 @@ defmodule PocketFlex.AsyncBatchTest do
     test "runs the async batch example" do
       urls = ["https://example.com/1", "https://example.com/2", "https://example.com/3"]
 
+      # Run the example
       {:ok, results} = PocketFlex.Examples.AsyncBatchExample.run(urls)
 
       assert results.total_urls == 3
@@ -141,6 +145,7 @@ defmodule PocketFlex.AsyncBatchTest do
     test "runs the async parallel batch example" do
       urls = ["https://example.com/1", "https://example.com/2", "https://example.com/3"]
 
+      # Run the example
       {:ok, results} = PocketFlex.Examples.AsyncBatchExample.run_parallel(urls)
 
       assert results.total_urls == 3

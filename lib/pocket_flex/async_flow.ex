@@ -13,7 +13,7 @@ defmodule PocketFlex.AsyncFlow do
 
   ## Parameters
     - flow: The flow to run
-    - shared: The initial shared state
+    - state: The initial shared state
     
   ## Returns
     A Task that will resolve to:
@@ -21,8 +21,8 @@ defmodule PocketFlex.AsyncFlow do
     - {:error, reason}
   """
   @spec run_async(PocketFlex.Flow.t(), map()) :: Task.t()
-  def run_async(flow, shared) do
-    Task.async(fn -> PocketFlex.Flow.run(flow, shared) end)
+  def run_async(flow, state) do
+    Task.async(fn -> PocketFlex.Flow.run(flow, state) end)
   end
 
   @doc """
@@ -30,7 +30,7 @@ defmodule PocketFlex.AsyncFlow do
 
   ## Parameters
     - flow: The flow to run
-    - shared: The initial shared state
+    - state: The initial shared state
     
   ## Returns
     A tuple containing:
@@ -38,14 +38,14 @@ defmodule PocketFlex.AsyncFlow do
     - :error and an error reason
   """
   @spec orchestrate_async(PocketFlex.Flow.t(), map()) :: {:ok, map()} | {:error, term()}
-  def orchestrate_async(flow, shared) do
-    orchestrate_async_flow(flow, flow.start_node, shared, flow.params)
+  def orchestrate_async(flow, state) do
+    orchestrate_async_flow(flow, flow.start_node, state, flow.params)
   end
 
   @doc false
-  defp orchestrate_async_flow(_flow, nil, shared, _params), do: {:ok, shared}
+  defp orchestrate_async_flow(_flow, nil, state, _params), do: {:ok, state}
 
-  defp orchestrate_async_flow(flow, current_node, shared, params) do
+  defp orchestrate_async_flow(flow, current_node, state, params) do
     # Set node params if the node supports it
     current_node =
       if function_exported?(current_node, :set_params, 1) do
@@ -61,20 +61,20 @@ defmodule PocketFlex.AsyncFlow do
         if function_exported?(current_node, :run_async, 1) do
           Logger.debug("Running async node: #{inspect(current_node)}")
 
-          current_node.run_async(shared)
+          current_node.run_async(state)
           |> Task.await(:infinity)
         else
           Logger.debug("Running sync node in async flow: #{inspect(current_node)}")
-          PocketFlex.NodeRunner.run_node(current_node, shared)
+          PocketFlex.NodeRunner.run_node(current_node, state)
         end
 
       case result do
-        {:ok, action, updated_shared} ->
+        {:ok, action, updated_state} ->
           # Find next node
           next_node = get_next_node(flow, current_node, action)
 
           # Continue flow
-          orchestrate_async_flow(flow, next_node, updated_shared, params)
+          orchestrate_async_flow(flow, next_node, updated_state, params)
 
         {:error, reason} ->
           {:error, reason}
@@ -138,13 +138,13 @@ defmodule PocketFlex.AsyncFlow do
     - flow: The flow to update
     - from: The source node module
     - to: The target node module
-    - action: The action key for this connection (default: "default")
+    - action: The action key for this connection (default: :default)
     
   ## Returns
     The updated flow
   """
-  @spec connect(PocketFlex.Flow.t(), module(), module(), String.t()) :: PocketFlex.Flow.t()
-  def connect(flow, from, to, action \\ "default") do
+  @spec connect(PocketFlex.Flow.t(), module(), module(), atom()) :: PocketFlex.Flow.t()
+  def connect(flow, from, to, action \\ :default) do
     PocketFlex.Flow.connect(flow, from, to, action)
   end
 

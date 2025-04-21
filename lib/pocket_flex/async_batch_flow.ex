@@ -16,7 +16,7 @@ defmodule PocketFlex.AsyncBatchFlow do
 
   ## Parameters
     - flow: The flow to run
-    - shared: The initial shared state
+    - state: The initial shared state
     
   ## Returns
     A Task that will resolve to:
@@ -24,41 +24,41 @@ defmodule PocketFlex.AsyncBatchFlow do
     - {:error, reason}
   """
   @spec run_async_batch(PocketFlex.Flow.t(), map()) :: Task.t()
-  def run_async_batch(flow, shared) do
+  def run_async_batch(flow, state) do
     # Generate a unique flow ID for this execution
     flow_id = "async_batch_#{:erlang.unique_integer([:positive])}"
 
-    # Initialize state storage with the initial shared state
-    PocketFlex.StateStorage.init(flow_id, shared)
+    # Initialize state storage with the initial state
+    PocketFlex.StateStorage.update_state(flow_id, state)
 
     Task.async(fn ->
       try do
         # Get batch items from prep
-        items = flow.start_node.prep(shared)
+        items = flow.start_node.prep(state)
 
         case items do
           nil ->
-            result = {:ok, shared}
+            result = {:ok, state}
             PocketFlex.StateStorage.cleanup(flow_id)
             result
 
           [] ->
-            result = {:ok, shared}
+            result = {:ok, state}
             PocketFlex.StateStorage.cleanup(flow_id)
             result
 
           items when is_list(items) ->
             # Process each item sequentially but asynchronously
-            result = process_items_sequentially(flow, flow_id, items)
+            process_items_sequentially(flow, flow_id, items)
 
-            # Run any remaining nodes in the flow that aren't part of the batch processing
-            case result do
-              {:ok, _batch_shared} ->
-                # Get all nodes that should be executed after the start node
-                next_nodes = get_next_nodes(flow, flow.start_node)
+            # Get the latest state after processing items
+            current_state = PocketFlex.StateStorage.get_state(flow_id)
 
-                # Execute each node in sequence
-                final_result = execute_remaining_nodes(flow, flow_id, next_nodes)
+            # Continue the flow with the remaining nodes (after the start node)
+            case continue_flow(flow, flow.start_node, :default, current_state) do
+              {:ok, final_state} ->
+                # Clean up the state
+                final_result = {:ok, final_state}
                 PocketFlex.StateStorage.cleanup(flow_id)
                 final_result
 
@@ -83,93 +83,81 @@ defmodule PocketFlex.AsyncBatchFlow do
 
   # Process items sequentially
   defp process_items_sequentially(flow, flow_id, items) do
-    # Process each item and accumulate the shared state
-    Enum.reduce_while(items, {:ok, PocketFlex.StateStorage.get_state(flow_id)}, fn item,
-                                                                                   {:ok,
-                                                                                    _acc_shared} ->
+    # Process each item sequentially
+    Enum.each(items, fn item ->
       # Get the latest shared state from storage
-      current_shared = PocketFlex.StateStorage.get_state(flow_id)
+      current_state = PocketFlex.StateStorage.get_state(flow_id)
 
-      # Create a new shared map with the current batch item
-      item_shared = Map.put(current_shared, "current_batch_item", item)
+      # Create a new state map with the current batch item
+      item_state = Map.put(current_state, "current_batch_item", item)
 
-      # Run the flow with this item, but only through the start node
-      {:ok, updated_shared} = run_start_node(flow, item_shared)
+      # Run the start node with this item
+      case run_node(flow.start_node, item_state) do
+        {:ok, _action, updated_state} ->
+          # Update the shared state in storage
+          PocketFlex.StateStorage.update_state(flow_id, updated_state)
 
-      # Update the shared state in storage
-      PocketFlex.StateStorage.update_state(flow_id, updated_shared)
-      # Continue with the updated shared state
-      {:cont, {:ok, updated_shared}}
-    end)
-  end
-
-  # Run only the start node of the flow
-  defp run_start_node(flow, shared) do
-    # Prepare the start node
-    prep_result = flow.start_node.prep(shared)
-
-    # Execute the start node
-    exec_result = flow.start_node.exec(prep_result)
-
-    # Post-process the start node
-    {_action, updated_shared} = flow.start_node.post(shared, prep_result, exec_result)
-
-    # Return the updated shared state
-    {:ok, updated_shared}
-  end
-
-  # Get all nodes that should be executed after the start node
-  defp get_next_nodes(flow, node) do
-    # Get all connections from this node
-    connections = Map.get(flow.connections, node, %{})
-
-    # Get all target nodes
-    Enum.map(connections, fn {_action, target_node} -> target_node end)
-    |> Enum.uniq()
-  end
-
-  # Execute remaining nodes in the flow
-  defp execute_remaining_nodes(flow, flow_id, nodes) do
-    # Get the latest shared state
-    current_shared = PocketFlex.StateStorage.get_state(flow_id)
-
-    # Execute each node in sequence
-    Enum.reduce_while(nodes, {:ok, current_shared}, fn node, {:ok, acc_shared} ->
-      # Run the node
-      {:ok, updated_shared} = run_node(node, acc_shared)
-
-      # Update the shared state in storage
-      PocketFlex.StateStorage.update_state(flow_id, updated_shared)
-
-      # Get the next nodes to execute
-      next_nodes = get_next_nodes(flow, node)
-
-      if Enum.empty?(next_nodes) do
-        # No more nodes to execute
-        {:halt, {:ok, updated_shared}}
-      else
-        # Execute the next nodes
-        case execute_remaining_nodes(flow, flow_id, next_nodes) do
-          {:ok, final_shared} -> {:halt, {:ok, final_shared}}
-          error -> {:halt, error}
-        end
+        {:error, reason} ->
+          Logger.error("Error processing item: #{inspect(reason)}")
       end
     end)
   end
 
-  # Run a single node in the flow
-  defp run_node(node, shared) do
-    # Prepare the node
-    prep_result = node.prep(shared)
+  # Run a single node
+  defp run_node(node, state) do
+    try do
+      # Prepare data
+      prep_result = node.prep(state)
 
-    # Execute the node
-    exec_result = node.exec(prep_result)
+      # Execute
+      exec_result = node.exec(prep_result)
 
-    # Post-process the node
-    {_action, updated_shared} = node.post(shared, prep_result, exec_result)
+      # Post-process
+      {action, updated_state} = node.post(state, prep_result, exec_result)
 
-    # Return the updated shared state
-    {:ok, updated_shared}
+      {:ok, action, updated_state}
+    rescue
+      e ->
+        Logger.error("Error running node: #{inspect(e)}")
+        {:error, e}
+    end
+  end
+
+  # Continue the flow with the remaining nodes
+  defp continue_flow(flow, current_node, action, state) do
+    # Find the next node based on the action
+    next_node = get_next_node(flow, current_node, action)
+
+    # If there's no next node, return the current state
+    if next_node == nil do
+      {:ok, state}
+    else
+      # Run the next node
+      case run_node(next_node, state) do
+        {:ok, next_action, updated_state} ->
+          # Continue the flow with the next node
+          continue_flow(flow, next_node, next_action, updated_state)
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  # Get the next node based on the current node and action
+  defp get_next_node(flow, current_node, action) do
+    # Get the connections for the current node
+    connections = Map.get(flow.connections, current_node, %{})
+
+    # Get the next node for the given action or the default action
+    next_node =
+      cond do
+        Map.has_key?(connections, action) -> Map.get(connections, action)
+        Map.has_key?(connections, :default) -> Map.get(connections, :default)
+        true -> nil
+      end
+
+    next_node
   end
 end
 
@@ -191,7 +179,7 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
 
   ## Parameters
     - flow: The flow to run
-    - shared: The initial shared state
+    - state: The initial shared state
     
   ## Returns
     A Task that will resolve to:
@@ -199,41 +187,41 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
     - {:error, reason}
   """
   @spec run_async_parallel_batch(PocketFlex.Flow.t(), map()) :: Task.t()
-  def run_async_parallel_batch(flow, shared) do
+  def run_async_parallel_batch(flow, state) do
     # Generate a unique flow ID for this execution
     flow_id = "async_parallel_batch_#{:erlang.unique_integer([:positive])}"
 
-    # Initialize state storage with the initial shared state
-    PocketFlex.StateStorage.init(flow_id, shared)
+    # Initialize state storage with the initial state
+    PocketFlex.StateStorage.update_state(flow_id, state)
 
     Task.async(fn ->
       try do
         # Get batch items from prep
-        items = flow.start_node.prep(shared)
+        items = flow.start_node.prep(state)
 
         case items do
           nil ->
-            result = {:ok, shared}
+            result = {:ok, state}
             PocketFlex.StateStorage.cleanup(flow_id)
             result
 
           [] ->
-            result = {:ok, shared}
+            result = {:ok, state}
             PocketFlex.StateStorage.cleanup(flow_id)
             result
 
           items when is_list(items) ->
             # Process items in parallel
-            result = process_items_in_parallel(flow, flow_id, items)
+            process_items_in_parallel(flow, flow_id, items)
 
-            # Run any remaining nodes in the flow that aren't part of the batch processing
-            case result do
-              {:ok, _batch_shared} ->
-                # Get all nodes that should be executed after the start node
-                next_nodes = get_next_nodes(flow, flow.start_node)
+            # Get the latest state after processing items
+            current_state = PocketFlex.StateStorage.get_state(flow_id)
 
-                # Execute each node in sequence
-                final_result = execute_remaining_nodes(flow, flow_id, next_nodes)
+            # Continue the flow with the remaining nodes (after the start node)
+            case continue_flow(flow, flow.start_node, :default, current_state) do
+              {:ok, final_state} ->
+                # Clean up the state
+                final_result = {:ok, final_state}
                 PocketFlex.StateStorage.cleanup(flow_id)
                 final_result
 
@@ -263,93 +251,83 @@ defmodule PocketFlex.AsyncParallelBatchFlow do
       Enum.map(items, fn item ->
         Task.async(fn ->
           # Get the latest shared state from storage
-          current_shared = PocketFlex.StateStorage.get_state(flow_id)
+          current_state = PocketFlex.StateStorage.get_state(flow_id)
 
           # Create a new shared map with the current batch item
-          item_shared = Map.put(current_shared, "current_batch_item", item)
+          item_state = Map.put(current_state, "current_batch_item", item)
 
-          # Run the flow with this item, but only through the start node
-          {:ok, updated_shared} = run_start_node(flow, item_shared)
+          # Run the start node with this item
+          case run_node(flow.start_node, item_state) do
+            {:ok, _action, updated_state} ->
+              # Update the shared state in storage by merging
+              PocketFlex.StateStorage.merge_state(flow_id, updated_state)
+              {:ok, updated_state}
 
-          # Update the shared state in storage by merging
-          PocketFlex.StateStorage.merge_state(flow_id, updated_shared)
-          {:ok, updated_shared}
+            {:error, reason} ->
+              Logger.error("Error processing item: #{inspect(reason)}")
+              {:error, reason}
+          end
         end)
       end)
 
     # Wait for all tasks to complete
-    _results = Task.await_many(tasks, :infinity)
-
-    # Return the final state from storage
-    {:ok, PocketFlex.StateStorage.get_state(flow_id)}
+    Task.await_many(tasks, :infinity)
   end
 
-  # Run only the start node of the flow
-  defp run_start_node(flow, shared) do
-    # Prepare the start node
-    prep_result = flow.start_node.prep(shared)
+  # Run a single node
+  defp run_node(node, state) do
+    try do
+      # Prepare data
+      prep_result = node.prep(state)
 
-    # Execute the start node
-    exec_result = flow.start_node.exec(prep_result)
+      # Execute
+      exec_result = node.exec(prep_result)
 
-    # Post-process the start node
-    {_action, updated_shared} = flow.start_node.post(shared, prep_result, exec_result)
+      # Post-process
+      {action, updated_state} = node.post(state, prep_result, exec_result)
 
-    # Return the updated shared state
-    {:ok, updated_shared}
+      {:ok, action, updated_state}
+    rescue
+      e ->
+        Logger.error("Error running node: #{inspect(e)}")
+        {:error, e}
+    end
   end
 
-  # Get all nodes that should be executed after the start node
-  defp get_next_nodes(flow, node) do
-    # Get all connections from this node
-    connections = Map.get(flow.connections, node, %{})
+  # Continue the flow with the remaining nodes
+  defp continue_flow(flow, current_node, action, state) do
+    # Find the next node based on the action
+    next_node = get_next_node(flow, current_node, action)
 
-    # Get all target nodes
-    Enum.map(connections, fn {_action, target_node} -> target_node end)
-    |> Enum.uniq()
-  end
+    # If there's no next node, return the current state
+    if next_node == nil do
+      {:ok, state}
+    else
+      # Run the next node
+      case run_node(next_node, state) do
+        {:ok, next_action, updated_state} ->
+          # Continue the flow with the next node
+          continue_flow(flow, next_node, next_action, updated_state)
 
-  # Execute remaining nodes in the flow
-  defp execute_remaining_nodes(flow, flow_id, nodes) do
-    # Get the latest shared state
-    current_shared = PocketFlex.StateStorage.get_state(flow_id)
-
-    # Execute each node in sequence
-    Enum.reduce_while(nodes, {:ok, current_shared}, fn node, {:ok, acc_shared} ->
-      # Run the node
-      {:ok, updated_shared} = run_node(node, acc_shared)
-
-      # Update the shared state in storage
-      PocketFlex.StateStorage.update_state(flow_id, updated_shared)
-
-      # Get the next nodes to execute
-      next_nodes = get_next_nodes(flow, node)
-
-      if Enum.empty?(next_nodes) do
-        # No more nodes to execute
-        {:halt, {:ok, updated_shared}}
-      else
-        # Execute the next nodes
-        case execute_remaining_nodes(flow, flow_id, next_nodes) do
-          {:ok, final_shared} -> {:halt, {:ok, final_shared}}
-          error -> {:halt, error}
-        end
+        {:error, reason} ->
+          {:error, reason}
       end
-    end)
+    end
   end
 
-  # Run a single node in the flow
-  defp run_node(node, shared) do
-    # Prepare the node
-    prep_result = node.prep(shared)
+  # Get the next node based on the current node and action
+  defp get_next_node(flow, current_node, action) do
+    # Get the connections for the current node
+    connections = Map.get(flow.connections, current_node, %{})
 
-    # Execute the node
-    exec_result = node.exec(prep_result)
+    # Get the next node for the given action or the default action
+    next_node =
+      cond do
+        Map.has_key?(connections, action) -> Map.get(connections, action)
+        Map.has_key?(connections, :default) -> Map.get(connections, :default)
+        true -> nil
+      end
 
-    # Post-process the node
-    {_action, updated_shared} = node.post(shared, prep_result, exec_result)
-
-    # Return the updated shared state
-    {:ok, updated_shared}
+    next_node
   end
 end

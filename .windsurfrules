@@ -9,3 +9,4 @@
 - always use atoms for control flow, never strings
 - for documentation please use the hex_docs package
 - for libraries lease use doc tests where possible
+- run mix credo to check if anything needs re-factoring

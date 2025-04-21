@@ -3,21 +3,8 @@ defmodule PocketFlex.StateStorage do
   Behavior for state storage implementations.
 
   This module defines the behavior that all state storage implementations
-  must follow. It provides a common interface for initializing, getting,
-  updating, and cleaning up state.
+  must follow. It provides a common interface for getting, updating, and cleaning up state.
   """
-
-  @doc """
-  Initializes a new state for a flow.
-
-  ## Parameters
-    - flow_id: A unique identifier for the flow
-    - initial_state: The initial state to store
-    
-  ## Returns
-    The flow_id
-  """
-  @callback init(flow_id :: binary(), initial_state :: map()) :: binary()
 
   @doc """
   Gets the current state for a flow.
@@ -70,20 +57,6 @@ defmodule PocketFlex.StateStorage do
   """
   def get_storage_module do
     Application.get_env(:pocket_flex, :state_storage, PocketFlex.StateStorage.ETS)
-  end
-
-  @doc """
-  Initializes a new state for a flow using the configured storage.
-
-  ## Parameters
-    - flow_id: A unique identifier for the flow
-    - initial_state: The initial state to store
-    
-  ## Returns
-    The flow_id
-  """
-  def init(flow_id, initial_state) do
-    get_storage_module().init(flow_id, initial_state)
   end
 
   @doc """
