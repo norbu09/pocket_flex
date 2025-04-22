@@ -51,7 +51,11 @@ defmodule PocketFlex.Monitoring do
 
     Logger.metadata(flow_id: flow_id)
 
-    Logger.info("Starting flow execution", flow_id: flow_id, flow: flow, initial_state: initial_state)
+    Logger.info("Starting flow execution",
+      flow_id: flow_id,
+      flow: flow,
+      initial_state: initial_state
+    )
 
     # Store monitoring data
     PocketFlex.StateStorage.update_state(

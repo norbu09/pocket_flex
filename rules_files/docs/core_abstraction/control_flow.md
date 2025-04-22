@@ -11,52 +11,39 @@ PocketFlex manages the sequence of execution between [Nodes](./node.md) based on
 
 ## Transition Logic
 
-- **Flow Definition**: The overall structure (which nodes connect to which) is typically defined when the flow is created. This definition maps `next_action_atom` results from a source node to a destination node (or a special `:end` state).
+- **Flow Definition**: The overall structure (which nodes connect to which) is defined using the PocketFlex DSL. Each node specifies transitions from `next_action_atom` results to destination nodes (or a special `:end` state).
 - **`post/3` Return Value**: The `post/3` function of a node determines the *immediate next step* by returning `{:ok, {next_action_atom, updated_state}}`.
 - **`next_action_atom`**: This atom (e.g., `:default`, `:success`, `:error`, `:user_input_required`, `:condition_met`) dictates which transition path to take from the current node.
 
-## Example Flow Definition (Conceptual)
+## Example Flow Definition
 
 ```elixir
-# Hypothetical flow definition using PocketFlex API
-PocketFlex.define(
-  start_node: MyProject.Nodes.StartNode,
-  nodes: [
-    # StartNode transitions
-    %{module: MyProject.Nodes.StartNode, 
-      transitions: %{
-        default: MyProject.Nodes.ProcessDataNode, # Default path
-        needs_auth: MyProject.Nodes.AuthNode      # Conditional path
-      }
-    },
-    
-    # ProcessDataNode transitions
-    %{module: MyProject.Nodes.ProcessDataNode, 
-      transitions: %{
-        default: MyProject.Nodes.EndNode,       # Successful processing
-        error: MyProject.Nodes.ErrorHandlingNode # Error during processing
-      }
-    },
+alias MyProject.Nodes
+alias PocketFlex.DSL
 
-    # AuthNode transitions
-    %{module: MyProject.Nodes.AuthNode, 
-      transitions: %{
-        success: MyProject.Nodes.ProcessDataNode, # If auth succeeds, go process
-        failure: MyProject.Nodes.EndNode          # If auth fails, end
-      }
-    },
-
-    # ErrorHandlingNode transitions
-    %{module: MyProject.Nodes.ErrorHandlingNode, 
-      transitions: %{
-        default: MyProject.Nodes.EndNode         # Always end after logging error
-      }
-    },
-
-    # EndNode is a terminal state (no transitions out)
-    %{module: MyProject.Nodes.EndNode, transitions: %{}}
-  ]
-)
+def define_flow do
+  DSL.define(
+    start_node: Nodes.StartNode,
+    nodes: [
+      %{module: Nodes.StartNode, transitions: %{
+        default: Nodes.ProcessDataNode,
+        needs_auth: Nodes.AuthNode
+      }},
+      %{module: Nodes.ProcessDataNode, transitions: %{
+        default: Nodes.EndNode,
+        error: Nodes.ErrorHandlingNode
+      }},
+      %{module: Nodes.AuthNode, transitions: %{
+        success: Nodes.ProcessDataNode,
+        failure: Nodes.EndNode
+      }},
+      %{module: Nodes.ErrorHandlingNode, transitions: %{
+        default: Nodes.EndNode
+      }},
+      %{module: Nodes.EndNode, transitions: %{}}
+    ]
+  )
+end
 ```
 
 ## How it Works (Simplified)
@@ -73,12 +60,20 @@ PocketFlex.define(
 10. The `state_with_error_info` is passed to `ErrorHandlingNode.prep/1`.
 11. ... and so on, until a node transitions to a defined end state or has no further transitions defined.
 
-## Best Practices & Conventions
+## Best Practices
 
-- **Always use atoms** for transition/action keys (e.g., `:default`, `:success`, `:error`).
-- **All node and flow operations should return `{:ok, ...}` or `{:error, ...}` tuples** for robust error handling and clear control flow.
-- **Use the DSL** (see the DSL guide) for concise, idiomatic flow definitions.
-- **Explicitly define all possible transitions** in your flow for clarity and maintainability.
+- Use atoms for all flow actions (`:default`, `:error`, etc.), never strings.
+- Always handle all possible outcomes in the transitions map.
+- Keep node transitions explicit for clarity and maintainability.
+- Use dedicated router nodes for complex branching logic.
+- Prefer pattern matching in `post/3` to select the transition atom.
+- Use error transitions (`:error`) for robust error handling and recovery.
+
+## Key Concepts
+
+- **Atom-Based Transitions**: Using atoms (`:default`, `:error`, etc.) for transition keys is conventional and efficient in Elixir.
+- **Explicit Paths**: Define all expected transitions clearly in the flow definition.
+- **Error Handling**: Design dedicated error paths or nodes, triggered by specific error atoms returned from `post/3`. 
 
 ## Migration Note
 
@@ -87,8 +82,6 @@ If upgrading from older versions:
 - Ensure all results are tuple-based
 - Reference the DSL guide for modern flow patterns
 
-## Key Concepts
-
-- **Atom-Based Transitions**: Using atoms (`:default`, `:error`, etc.) for transition keys is conventional and efficient in Elixir.
-- **Explicit Paths**: Define all expected transitions clearly in the flow definition.
-- **Error Handling**: Design dedicated error paths or nodes, triggered by specific error atoms returned from `post/3`. 
+## References
+- See [Node](./node.md) for node lifecycle.
+- See [Communication](./communication.md) for state handling.

@@ -41,4 +41,12 @@ graph TD
 - **Node Granularity**: Break down the workflow into logical, single-responsibility nodes. Avoid putting too much complex branching logic inside a single node's `post/3` function; use dedicated router nodes or clear conditional transitions instead.
 - **Error Handling**: Define clear error paths (`:error` transitions) at each stage where failures can occur.
 
+## Best Practices
+
+- Define all nodes and transitions explicitly.
+- Visualize flows with diagrams (e.g., Mermaid).
+- Design state shape for decision points and branching.
+- Use dedicated router nodes for clarity.
+- Handle errors with explicit error transitions and nodes.
+
 Workflows in PocketFlex leverage the core concepts of nodes, shared state, and control flow to orchestrate complex sequences of operations. 

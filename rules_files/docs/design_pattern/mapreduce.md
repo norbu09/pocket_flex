@@ -48,8 +48,8 @@ graph TD
     def exec({:ok, %{items: items_to_process}}) do
       results = 
         items_to_process
-        |> Task.async_stream(&process_single_item/1, timeout: 60000, max_concurrency: 10) 
-        |> Enum.map(fn {:ok, result} -> result end) # Task.async_stream returns {:ok, result} tuples
+        |> Task.async_stream(&process_single_item/1, timeout: 60_000, max_concurrency: 10) 
+        |> Enum.to_list()
       
       # results will be a list of {:ok, item_result} or {:error, reason} tuples
       {:ok, results}
@@ -69,3 +69,15 @@ graph TD
 - **Error Handling**: The `Task.async_stream` collects results including errors. The Reduce Node must explicitly handle potential `{:error, reason}` tuples in the results list.
 - **Resource Management**: Be mindful of `max_concurrency` and `timeout` options in `Task.async_stream` to avoid overwhelming system resources or external APIs.
 - **State**: The large list of items might be passed via the shared state, or the Setup Node might pass references (e.g., IDs to fetch from a DB) to keep the state map smaller, with the Map Node fetching details within `process_single_item/1`. 
+
+## Best Practices
+
+- Use `Task.async_stream` for safe, concurrent processing.
+- Handle all error cases explicitly in the reduce node.
+- Store all results (including errors) in shared state for traceability.
+- Keep map and reduce logic pure and side-effect free when possible.
+
+## References
+- See [Node](../core_abstraction/node.md) for node structure.
+- See [Control Flow](../core_abstraction/control_flow.md) for transitions.
+- See [Workflow](./workflow.md) for more complex orchestration.

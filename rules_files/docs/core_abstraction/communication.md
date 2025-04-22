@@ -7,26 +7,29 @@ nav_order: 2
 
 # Communication: Shared State
 
-PocketFlex nodes communicate and share data primarily through an immutable **Shared State** map. This map is passed from node to node throughout the execution of a flow.
+PocketFlex nodes communicate and share data exclusively through an immutable **Shared State** map. This map is passed from node to node throughout the execution of a flow.
 
 ## Concept
 
-- **Immutable Map**: The shared state is typically an Elixir map (`%{:key => value}`). Because Elixir data structures are immutable, each node receives the state map, and the `post/3` function returns a *new*, updated state map. This prevents side effects and makes flows easier to reason about.
-- **Centralized Data**: All data required by downstream nodes or produced by upstream nodes resides in this shared state map.
-- **Node Responsibility**: 
+- **Immutable Map**: The shared state is always an Elixir map (`%{key => value}`). Elixir data structures are immutable, so each node receives the state map and returns a *new*, updated state map in its `post/3` function. This prevents side effects and makes flows easier to reason about and test.
+- **Centralized Data**: All data required by downstream nodes or produced by upstream nodes resides in the shared state map. This includes user input, intermediate results, error info, and configuration.
+- **Node Responsibility**:
     - The `prep/1` function reads necessary data *from* the state.
     - The `post/3` function writes results *to* a new version of the state map.
+    - Nodes should never mutate state in-place or use process state for flow data.
 
 ## Example
 
 ```elixir
 # Initial state provided to the flow
-initial_state = %{
-  user_id: "user123",
-  input_text: "Some text to process.",
-  results: %{},
-  config: %{mode: :fast}
-}
+def initial_state do
+  %{
+    user_id: "user123",
+    input_text: "Some text to process.",
+    results: %{},
+    config: %{mode: :fast}
+  }
+end
 
 # --- Node A runs ---
 # Prep reads :input_text
@@ -60,10 +63,16 @@ state_after_node_b = %{
 
 ## Best Practices
 
-- **Keep it Serializable**: If you need to persist the state or pass it between processes, ensure the values in the map are easily serializable (basic Elixir types, simple structs). Avoid storing PIDs, function references, or complex ETS tables directly in the state if persistence or distribution is needed.
-- **Structured Keys**: Use descriptive atoms or nested maps for keys to keep the state organized (e.g., `%{results: %{analysis: ...}}` instead of `%{analysis_result: ...}`).
-- **Minimize State**: Only store data in the shared state that is truly needed by subsequent nodes. Avoid cluttering it with temporary data used only within a single node.
-- **Consider Alternatives for Large Data**: For very large data (e.g., large files, embeddings), consider storing them outside the main state map (e.g., in ETS, a database, or cloud storage) and passing only references (IDs, paths) in the state map.
+- Always treat the shared state as immutable. Never mutate it in-place.
+- Use descriptive keys for all data stored in state.
+- Store all intermediate results, errors, and configuration in the state map.
+- Avoid storing large binaries or sensitive data in state unless necessary.
+- Design state shape up front for clarity and extensibility.
+- Use pattern matching in node functions to safely extract needed data from state.
+
+## References
+- See [Node](./node.md) for how nodes interact with state.
+- See [Control Flow](./control_flow.md) for how state transitions between nodes.
 
 ## ETS-Backed Shared State
 

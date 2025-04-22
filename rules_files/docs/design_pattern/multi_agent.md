@@ -53,4 +53,14 @@ graph TD
 - **Supervision**: If running multiple agent flows as processes, use OTP Supervisors to ensure fault tolerance and manage the lifecycle of agent processes.
 - **Complexity**: Multi-agent systems can become complex quickly. Start simple and clearly define the roles and interactions of each agent.
 
+## Best Practices
+
+- Isolate agent responsibilities for testability.
+- Prefer message passing or ETS for agent communication.
+- Supervise all agent processes for fault tolerance.
+
+## References
+- See [Workflow](./workflow.md) for orchestration patterns.
+- See [Node](../core_abstraction/node.md) for node design.
+
 PocketFlex provides the building blocks (nodes, flows) for agent logic, while Elixir/OTP provides the powerful concurrency and fault-tolerance mechanisms needed to orchestrate multiple agents effectively. 
