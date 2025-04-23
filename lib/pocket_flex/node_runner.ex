@@ -34,53 +34,49 @@ defmodule PocketFlex.NodeRunner do
   @spec run_node(module(), map(), String.t() | nil) ::
           {:ok, atom() | nil, map()} | {:error, term()}
   def run_node(node, shared, flow_id \\ nil) do
-    try do
-      # Update monitoring if flow_id is provided
-      if flow_id, do: ErrorHandler.update_monitoring(flow_id, node, :running)
+    node_name = inspect(node)
+    PocketFlex.Telemetry.span([:pocket_flex, :node, :run], %{node: node_name, flow_id: flow_id, shared_state: shared}, fn ->
+      try do
+        # Update monitoring if flow_id is provided
+        if flow_id, do: ErrorHandler.update_monitoring(flow_id, node, :running)
 
-      # Prepare data
-      case node_prep(node, shared) do
-        {:ok, prep_result} ->
-          # Execute with retry logic
-          case execute_with_retries(node, prep_result, 0, flow_id) do
-            {:ok, exec_result} ->
-              # Post-process
-              case node_post(node, shared, prep_result, exec_result) do
-                {:ok, action, updated_shared} ->
-                  # Update monitoring if flow_id is provided
-                  if flow_id, do: ErrorHandler.update_monitoring(flow_id, node, :completed)
-                  {:ok, action, updated_shared}
-
-                {:error, reason} ->
-                  if flow_id do
-                    ErrorHandler.record_error(flow_id, reason, node, %{stage: :post})
-                  end
-
-                  ErrorHandler.report_error(reason, :node_post, %{node: node})
-              end
-
-            {:error, reason} ->
-              if flow_id do
-                ErrorHandler.record_error(flow_id, reason, node, %{stage: :exec})
-              end
-
-              ErrorHandler.report_error(reason, :node_execution, %{node: node})
-          end
-
-        {:error, reason} ->
-          if flow_id do
-            ErrorHandler.record_error(flow_id, reason, node, %{stage: :prep})
-          end
-
-          ErrorHandler.report_error(reason, :node_prep, %{node: node})
-      end
-    rescue
-      e ->
-        if flow_id do
-          ErrorHandler.record_error(flow_id, e, node, %{stage: :unknown})
+        # Prepare data
+        case node_prep(node, shared) do
+          {:ok, prep_result} ->
+            # Execute with retry logic
+            case execute_with_retries(node, prep_result, 0, flow_id) do
+              {:ok, exec_result} ->
+                # Post-process
+                case node_post(node, shared, prep_result, exec_result) do
+                  {:ok, action, updated_shared} ->
+                    # Update monitoring if flow_id is provided
+                    if flow_id, do: ErrorHandler.update_monitoring(flow_id, node, :completed)
+                    {:ok, action, updated_shared}
+                  {:error, reason} ->
+                    if flow_id do
+                      ErrorHandler.record_error(flow_id, reason, node, %{stage: :post})
+                    end
+                    ErrorHandler.report_error(reason, :node_post, %{node: node})
+                end
+              {:error, reason} ->
+                if flow_id do
+                  ErrorHandler.record_error(flow_id, reason, node, %{stage: :exec})
+                end
+                ErrorHandler.report_error(reason, :node_execution, %{node: node})
+            end
+          {:error, reason} ->
+            if flow_id do
+              ErrorHandler.record_error(flow_id, reason, node, %{stage: :prep})
+            end
+            ErrorHandler.report_error(reason, :node_prep, %{node: node})
         end
-
-        ErrorHandler.report_error(e, :node_execution, %{node: node, stacktrace: __STACKTRACE__})
+      after
+        :ok
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
     end
   end
 

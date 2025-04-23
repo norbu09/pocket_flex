@@ -12,10 +12,6 @@ A minimalist Elixir framework inspired by PocketFlow for *Agents, Task Decomposi
 - **Expressive**: Aims to enable patterns like Agents, Workflows, RAG, etc., using Elixir idioms.
 - **Agentic-Coding Friendly**: Designed to be intuitive for AI agents collaborating with humans to build complex LLM applications in Elixir.
 
-<div align="center">
-  <img src="https://github.com/the-pocket/PocketFlow/raw/main/assets/meme.jpg?raw=true" width="400"/> 
-  <!-- TODO: Replace with a PocketFlex specific meme/logo -->
-</div>
 
 ## Core Abstraction
 

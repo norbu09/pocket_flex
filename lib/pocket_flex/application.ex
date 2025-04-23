@@ -13,7 +13,9 @@ defmodule PocketFlex.Application do
   def start(_type, _args) do
     children = [
       # Initialize the shared ETS table for state storage
-      {PocketFlex.StateStorage.ETS, []}
+      {PocketFlex.StateStorage.ETS, []},
+      # Start PubSub for telemetry events
+      {Phoenix.PubSub, name: PocketFlex.PubSub}
     ]
 
     # Ensure ETS table is created on application boot

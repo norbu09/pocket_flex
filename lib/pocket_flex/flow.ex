@@ -113,7 +113,15 @@ defmodule PocketFlex.Flow do
   """
   @spec run(t(), map()) :: {:ok, map()} | {:error, term()}
   def run(flow, shared) do
-    run_flow(flow, flow.start_node, shared, flow.params)
+    flow_id = Map.get(shared, :flow_id, "flow_#{System.unique_integer([:positive])}")
+    PocketFlex.Telemetry.span([:pocket_flex, :flow], %{flow_id: flow_id, flow_name: Map.get(flow, :name), initial_state: shared}, fn ->
+      run_flow(flow, flow.start_node, shared, flow.params)
+    end)
+    |> case do
+      {:ok, {:ok, final_state}} -> {:ok, final_state}
+      {:ok, {:error, reason}} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """

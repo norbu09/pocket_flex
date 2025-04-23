@@ -28,7 +28,9 @@ defmodule PocketFlex.MixProject do
       {:ex_doc, ">= 0.29.0", only: :dev, runtime: false},
       {:dialyxir, ">= 1.3.0", only: [:dev], runtime: false},
       {:credo, ">= 1.7.0", only: [:dev, :test], runtime: false},
-      {:meck, ">= 0.9.2", only: :test}
+      {:meck, ">= 0.9.2", only: :test},
+      {:phoenix_pubsub, ">= 2.1.0"},
+      {:telemetry, ">= 1.0.0"}
     ]
   end
 
