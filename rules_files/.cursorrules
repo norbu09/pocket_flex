@@ -1,104 +1,4 @@
-# TravelMail Project Rules
-
-This project follows general Elixir best practices and incorporates principles from the PocketFlex Agentic Coding guide.
-
-## Agentic Coding Philosophy
-
-- **Agentic Collaboration**: Development involves Human Design and AI Implementation.
-    - Humans: Define requirements, high-level flow/logic.
-    - AI: Refines details, implements nodes/utilities, optimizes, ensures reliability.
-- **Start Simple**: Begin with the simplest viable solution and iterate.
-- **Design First**: Outline high-level flow/logic (e.g., in `docs/design.md` or similar) before deep implementation.
-- **Seek Feedback**: Frequently ask humans for clarification and review.
-
-## Architecture (PocketFlex Inspired)
-
-- **Flow-Based**: Structure application logic as a flow of computation nodes.
-    - Use a framework like PocketFlex if available, or model the pattern explicitly.
-- **Nodes**: Implement core logic units as modules (e.g., `TravelMail.Nodes.ParseEmailNode`).
-    - Follow a consistent node structure (e.g., `prep/1`, `exec/1`, `post/3`).
-    - `prep`: Extracts needed data from state.
-    - `exec`: Performs the core, single-responsibility task (idempotent if possible). Calls utilities for external actions.
-    - `post`: Updates state based on `exec` result, determines next step using atom transitions (e.g., `:default`, `:error`, `:needs_summary`).
-- **Shared State**: Use an immutable map (`shared_state`) passed between nodes for communication.
-    - Keep state serializable and minimized.
-    - Use structured, descriptive keys.
-    - For large data, store externally and pass references in state.
-- **Utilities**: Implement external interactions (database, APIs, LLM calls) in separate utility modules (e.g., `TravelMail.Utils.EmailClient`, `TravelMail.Utils.LLMCaller`).
-    - Nodes call these utilities from their `exec/1` function.
-- **Control Flow**: Define flow transitions explicitly (e.g., in a dedicated `TravelMail.Flow` module).
-    - Use atoms for transition keys.
-    - Define clear paths for success, different conditions, and errors.
-- **Modularity**: Keep nodes focused on a single responsibility.
-
-## LLM Integration
-
-- **Wrapper Utility**: Use a dedicated utility module (e.g., `TravelMail.Utils.LLMCaller`) for all direct LLM interactions.
-- **LangchainEx**: Implement the LLM utility using LangchainEx (e.g., `LLMChain`) to allow flexibility in LLM providers and leverage its features (prompt templates, history management).
-- **Prompt Engineering**: Carefully design prompts within nodes that call the LLM utility. Include context, desired output format, and clear instructions.
-- **Parsing**: Reliably parse LLM outputs in the calling node's `post/3` function.
-
-## Build and Test
-
-- Use `mix` as the build system (`mix compile`, `mix test`).
-- Ensure code compiles without warnings.
-- Write ExUnit tests for all nodes and utility modules.
-    - Test nodes with various input states and expected transitions.
-    - Use `Mox` for mocking utilities (especially `LLMCaller`, API clients) in node tests.
-- Use property-based testing (`StreamData`) for complex data transformations.
-
-## Code Style and Structure
-
-- Format code with `mix format`.
-- Run `mix credo` and address suggestions.
-- Use standard Elixir file structure (`lib/travel_mail/`, `lib/travel_mail/nodes/`, `lib/travel_mail/utils/`, etc.).
-- Prefer pattern matching over conditionals.
-- Use `|>` for multi-step transformations.
-- Use `with` for sequential operations that might fail.
-- Keep functions focused; prefer smaller modules (e.g., < 300 lines).
-- Place private functions below public functions.
-
-## Error Handling
-
-- Use `{:ok, result}` / `{:error, reason}` tuples consistently.
-- Nodes should handle `{:error, reason}` from `exec/1` in their `post/3` function, update state appropriately, and return a specific transition atom (e.g., `:error`).
-- The flow definition must include transitions for these error atoms.
-- Use `Logger` for meaningful error messages with context.
-- Avoid `try/rescue` for control flow.
-
-## Logging and Debugging
-
-- Use `Logger` exclusively (`require Logger`). Avoid `IO.inspect` in committed code.
-- Log key events within nodes (`prep`, `exec`, `post` entry/exit, state changes, errors).
-- Use appropriate log levels (`:debug`, `:info`, `:warn`, `:error`).
-- Include context in logs (e.g., flow ID, node name, relevant state keys).
-
-## Dependencies
-
-- Use `Req` for external HTTP APIs.
-- Use `LangchainEx` for LLM interactions.
-- Add dependencies with `">="` in `mix.exs`.
-- Document the purpose of dependencies.
-
-## Concurrency
-
-- Use `Task` (`Task.async`, `Task.async_stream`) for concurrent operations where appropriate (e.g., within a MapReduce-style node).
-- Consider `GenServer` for stateful processes if needed (e.g., managing agent state in multi-agent systems).
-- Use Supervisors for fault tolerance.
-
-## Security
-
-- Use environment variables for API keys and sensitive configuration.
-- Validate external inputs (e.g., email content, API responses).
-- Follow standard security practices for external communication and data handling.
-
 ---
-# START: Content from pocket_flex/rules_files/.windsurfrules
----
-layout: default
-title: "Agentic Coding with PocketFlex"
----
-
 # Agentic Coding: Humans Design, Agents Code with PocketFlex!
 
 > If you are an AI agent involved in building LLM Systems with Elixir and PocketFlex, read this guide **VERY, VERY** carefully! This is the most important chapter in the entire document. Throughout development, you should always (1) start with a small and simple solution, (2) design at a high level (see `docs/design.md`) before implementation, and (3) frequently ask humans for feedback and clarification.
@@ -197,668 +97,99 @@ Agentic Coding with PocketFlex should be a collaboration between Human System De
    *   **Testing**: Write comprehensive ExUnit tests for each node. Use `Mox` to mock Utilities (like `LLMCaller` and `WebSearch`). Test flows with different initial states and expected transitions.
    *   **Self-Evaluation**: Implement a specific PocketFlex node that uses `LLMCaller` (via LangchainEx) to review the output of previous nodes.
 
-## Example PocketFlex Project File Structure (Elixir)
+This project follows general Elixir best practices and incorporates principles from the PocketFlex Agentic Coding guide.
 
+## Agentic Coding Philosophy
 
-- **`lib/my_project/utils/llm_caller.ex`**: Contains the LangchainEx wrapper.
+- **Agentic Collaboration**: Development involves Human Design and AI Implementation.
+    - Humans: Define requirements, high-level flow/logic.
+    - AI: Refines details, implements nodes/utilities, optimizes, ensures reliability.
+- **Start Simple**: Begin with the simplest viable solution and iterate.
+- **Design First**: Outline high-level flow/logic (e.g., in `docs/design.md` or similar) before deep implementation.
+- **Seek Feedback**: Frequently ask humans for clarification and review.
 
-  See: `examples/llm_caller.ex`
+## Architecture (PocketFlex Inspired)
 
-- **`lib/my_project/nodes/synthesize_node.ex`**: Example node calling the LLM utility.
+- **Flow-Based**: Structure application logic as a flow of computation nodes.
+    - Use a framework like PocketFlex if available, or model the pattern explicitly.
+- **Nodes**: Implement core logic units as modules (e.g., `PocketFlex.Nodes.ParseEmailNode`).
+    - Follow a consistent node structure (e.g., `prep/1`, `exec/1`, `post/3`).
+    - `prep`: Extracts needed data from state.
+    - `exec`: Performs the core, single-responsibility task (idempotent if possible). Calls utilities for external actions.
+    - `post`: Updates state based on `exec` result, determines next step using atom transitions (e.g., `:default`, `:error`, `:needs_summary`).
+- **Shared State**: Use an immutable map (`shared_state`) passed between nodes for communication.
+    - Keep state serializable and minimized.
+    - Use structured, descriptive keys.
+    - For large data, store externally and pass references in state.
+- **Utilities**: Implement external interactions (database, APIs, LLM calls) in separate utility modules (e.g., `PocketFlex.Utils.EmailClient`, `PocketFlex.Utils.LLMCaller`).
+    - Nodes call these utilities from their `exec/1` function.
+- **Control Flow**: Define flow transitions explicitly (e.g., in a dedicated `PocketFlex.Flow` module).
+    - Use atoms for transition keys.
+    - Define clear paths for success, different conditions, and errors.
+- **Modularity**: Keep nodes focused on a single responsibility.
 
-  See: `examples/synthesize_node.ex`
+## LLM Integration
 
-- **`lib/my_project/flow.ex`**: Defines the flow connecting these nodes (example assuming PocketFlex API).
+- **Wrapper Utility**: Use a dedicated utility module (e.g., `PocketFlex.Utils.LLMCaller`) for all direct LLM interactions.
+- **LangchainEx**: Implement the LLM utility using LangchainEx (e.g., `LLMChain`) to allow flexibility in LLM providers and leverage its features (prompt templates, history management).
+- **Prompt Engineering**: Carefully design prompts within nodes that call the LLM utility. Include context, desired output format, and clear instructions.
+- **Parsing**: Reliably parse LLM outputs in the calling node's `post/3` function.
 
-  See: `examples/flow_definition.ex`
+## Build and Test
 
-- **Entry Point (`mix run ...` or main function)**: Sets up initial state, gets flow definition, calls `PocketFlex.run/2`.
+- Use `mix` as the build system (`mix compile`, `mix test`).
+- Ensure code compiles without warnings.
+- Write ExUnit tests for all nodes and utility modules.
+    - Test nodes with various input states and expected transitions.
+    - Use `Mox` for mocking utilities (especially `LLMCaller`, API clients) in node tests.
+- Use property-based testing (`StreamData`) for complex data transformations.
 
----
+## Code Style and Structure
 
-**Further Reading:**
+- Format code with `mix format`.
+- Run `mix credo` and address suggestions.
+- Use standard Elixir file structure (`lib/travel_mail/`, `lib/travel_mail/nodes/`, `lib/travel_mail/utils/`, etc.).
+- Prefer pattern matching over conditionals.
+- Use `|>` for multi-step transformations.
+- Use `with` for sequential operations that might fail.
+- Keep functions focused; prefer smaller modules (e.g., < 300 lines).
+- Place private functions below public functions.
 
-- For detailed explanations of core concepts, see the files in `docs/core_abstraction/`.
-- For implementations of common patterns, see `docs/design_pattern/`.
-- For step-by-step examples, see the tutorials in `docs/tutorials/`.
+## Error Handling
 
-Remember to adapt PocketFlex API calls based on its actual implementation. Consult LangchainEx docs for LLM configuration and response handling. Follow all project rules (`.cursorrules`). Format code using `mix format`. Check with `mix credo`.
+- Use `{:ok, result}` / `{:error, reason}` tuples consistently.
+- Nodes should handle `{:error, reason}` from `exec/1` in their `post/3` function, update state appropriately, and return a specific transition atom (e.g., `:error`).
+- The flow definition must include transitions for these error atoms.
+- Use `Logger` for meaningful error messages with context.
+- Avoid `try/rescue` for control flow.
 
----
-# START: Content from pocket_flex/rules_files/.cursorrules
----
-# Rules for working within the `rules_files` directory
+## Logging and Debugging
 
-This file provides specific guidance when editing the PocketFlex framework documentation and examples contained within this `rules_files` directory. These rules supplement the general project rules found in the root `.cursorrules` file.
+- Use `Logger` exclusively (`require Logger`). Avoid `IO.inspect` in committed code.
+- Log key events within nodes (`prep`, `exec`, `post` entry/exit, state changes, errors).
+- Use appropriate log levels (`:debug`, `:info`, `:warn`, `:error`).
+- Include context in logs (e.g., flow ID, node name, relevant state keys).
 
-## General Structure
+## Dependencies
 
-- **`.windsurfrules`**: This is the main high-level guide ("Agentic Coding with PocketFlex"). It introduces concepts and references detailed documentation and examples.
-- **`docs/`**: Contains detailed documentation files (Markdown format) covering Core Abstractions, Design Patterns, and Tutorials.
-- **`examples/`**: Contains standalone Elixir code snippets (`.ex` files) referenced from the `.windsurfrules` guide and potentially the `docs/` files.
+- Use `Req` for external HTTP APIs.
+- Use `LangchainEx` for LLM interactions.
+- Add dependencies with `">="` in `mix.exs`.
+- Document the purpose of dependencies.
 
-## Content and Consistency
+## Concurrency
 
-- **Framework Context**: All documentation and examples should primarily describe and use the **PocketFlex** framework concepts (Nodes, Flows, Shared State, etc.).
-- **LLM Interaction Exception**: When showing code examples that *directly invoke an LLM*, use the **LangchainEx** library (as demonstrated in `examples/llm_caller.ex`). This provides flexibility in the LLM backend. Nodes *using* the LLM should call this utility wrapper.
-- **Consistency**: Ensure consistency between the `.windsurfrules` guide, the detailed documentation in `docs/`, and the code in `examples/`. If a concept is updated in one place, check if related explanations or examples in other files need updating.
-- **Linking**:
-    - Within `.windsurfrules`, use relative links (e.g., `[Node](./docs/core_abstraction/node.md)`, `[Example](examples/llm_caller.ex)`) to point to detailed docs or examples.
-    - Within files in `docs/`, use relative links to refer to other docs (e.g., `[Node](../core_abstraction/node.md)`) or examples (e.g., `[LLM Caller Example](../../examples/llm_caller.ex)`).
+- Use `Task` (`Task.async`, `Task.async_stream`) for concurrent operations where appropriate (e.g., within a MapReduce-style node).
+- Consider `GenServer` for stateful processes if needed (e.g., managing agent state in multi-agent systems).
+- Use Supervisors for fault tolerance.
 
-## Guide (`.windsurfrules`)
+## Security
 
-- Keep this file as a high-level overview and guide to the Agentic Coding process with PocketFlex.
-- Avoid putting very long code blocks or extremely detailed explanations here; instead, reference the appropriate files in `docs/` or `examples/`.
-- Ensure the Agentic Coding steps and overall narrative remain clear and focused.
-
-## Documentation (`docs/`)
-
-- Use clear and concise language.
-- Use standard Markdown formatting.
-- Organize files logically within subdirectories (`core_abstraction`, `design_pattern`, `tutorials`).
-- Use code blocks (` ```elixir ... ``` `) for short Elixir examples where appropriate, but prefer referencing larger examples in the `examples/` directory if the snippet becomes too long.
-- Explain PocketFlex concepts clearly, referencing Elixir/OTP principles where relevant.
-
-## Examples (`examples/`)
-
-- Each `.ex` file should represent a focused, runnable (or near-runnable, perhaps requiring minor setup) code snippet illustrating a specific concept.
-- Follow the general Elixir coding standards defined in the root `.cursorrules` (formatting with `mix format`, logging with `Logger`, error handling with tuples, etc.).
-- Use comments (`#`) to explain the code and its relation to PocketFlex concepts.
-- Keep examples minimal and directly relevant to the point being illustrated in the guide or docs.
-- Ensure the `llm_caller.ex` example correctly uses `LangchainEx` patterns.
-
----
-# START: Content from pocket_flex/rules_files/docs/index.md
----
-layout: default
-title: "Home"
-nav_order: 1
----
-
-# PocketFlex
-
-A minimalist Elixir framework inspired by PocketFlow for *Agents, Task Decomposition, RAG, etc.*.
-
-- **Lightweight**: Focuses on the core flow graph abstraction.
-- **Expressive**: Aims to enable patterns like Agents, Workflows, RAG, etc., using Elixir idioms.
-- **Agentic-Coding Friendly**: Designed to be intuitive for AI agents collaborating with humans to build complex LLM applications in Elixir.
-
-<div align="center">
-  <img src="https://github.com/the-pocket/PocketFlow/raw/main/assets/meme.jpg?raw=true" width="400"/>
-  <!-- TODO: Replace with a PocketFlex specific meme/logo -->
-</div>
-
-## Core Abstraction
-
-PocketFlex orchestrates computations through a directed graph of **Nodes**. Each node performs a specific task, potentially interacting with external **Utilities** (including LLMs via wrappers like LangchainEx) and communicating through a shared **State** map.
-
-- **[Node](./core_abstraction/node.md)**: The basic unit of computation, likely implemented as an Elixir module following a specific behaviour.
-- **[Communication](./core_abstraction/communication.md)**: How nodes share data, typically via an immutable shared state map passed through the flow.
-- **[Control Flow](./core_abstraction/control_flow.md)**: How the execution path is determined, usually based on the return values of a node's `post/3` function.
-
-## Design Patterns
-
-Explore common patterns implemented with PocketFlex:
-
-- **[Agent](./design_pattern/agent.md)**: Nodes making decisions based on state and LLM outputs.
-- **[RAG (Retrieval-Augmented Generation)](./design_pattern/rag.md)**: Combining retrieval nodes and LLM synthesis nodes.
-- **[MapReduce](./design_pattern/mapreduce.md)**: Using Elixir's concurrency (`Task.async_stream`) potentially orchestrated by PocketFlex nodes.
-- **[Workflow](./design_pattern/workflow.md)**: Defining complex sequences and conditional paths.
-- **[Multi-Agent](./design_pattern/multi_agent.md)**: Coordinating multiple independent PocketFlex flows or agents (potentially using OTP principles).
-
-## Tutorials
-
-Get started with these examples:
-
-- **[Hello World](./tutorials/hello_world.md)**: A minimal PocketFlex flow.
-- **[Chatbot](./tutorials/chatbot.md)**: Building a conversational agent.
-- **[Code Generation](./tutorials/code_generation.md)**: Using PocketFlex and an LLM for code tasks.
-- **[Web Search](./tutorials/web_search.md)**: Integrating external tools like web search.
+- Use environment variables for API keys and sensitive configuration.
+- Validate external inputs (e.g., email content, API responses).
+- Follow standard security practices for external communication and data handling.
 
 ---
-# START: Content from pocket_flex/rules_files/docs/core_abstraction/node.md
----
-layout: default
-title: "Node"
-parent: "Core Abstraction"
-nav_order: 1
----
-
-# Node
-
-The fundamental unit of computation in PocketFlex. Each Node encapsulates a specific piece of logic within the overall flow.
-
-## Node Behaviour (Conceptual)
-
-While the exact implementation might vary, a PocketFlex Node is conceptually an Elixir module implementing a specific behaviour (e.g., `PocketFlex.Node`). This behaviour likely defines callback functions:
-
-- `prep/1`:
-  - **Input**: The current `shared_state` (Map).
-  - **Output**: `{:ok, prep_data}` or `{:error, reason}`.
-  - **Purpose**: Extracts necessary data from the shared state for the `exec` step. Avoids complex computation.
-- `exec/1`:
-  - **Input**: `{:ok, prep_data}` from `prep/1`.
-  - **Output**: `{:ok, exec_result}` or `{:error, reason}`.
-  - **Purpose**: Performs the core logic of the node. This is where computations happen, utilities are called (including LLMs via wrappers), etc. Should be idempotent if possible.
-- `post/3`:
-  - **Input**: Original `shared_state`, `prep_data` (from `prep/1`), `exec_result` (from `exec/1`, which could be `{:ok, _}` or `{:error, _}`).
-  - **Output**: `{:ok, {next_action_atom, updated_state}}` or potentially `{:error, reason}` for critical post-processing errors.
-  - **Purpose**: Updates the `shared_state` based on the execution result and determines the next step in the flow via the `next_action_atom` (e.g., `:default`, `:success`, `:error`, `:custom_path`). Must handle both success and error cases from `exec/1`.
-
-## Example Node
-
-```elixir
-# Example Node: lib/my_project/nodes/add_value_node.ex
-# (Assumes a PocketFlex.Node behaviour exists)
-defmodule MyProject.Nodes.AddValueNode do
-  @moduledoc "A simple node that adds a value from config to the state."
-  # @behaviour PocketFlex.Node
-  require Logger
-
-  # 1. Prepare: Get the value to add (e.g., from config or initial state)
-  def prep(shared_state) do
-    # Example: Get value from application config or a default
-    value_to_add = Application.get_env(:my_app, :value_to_add, 10)
-    current_total = Map.get(shared_state, :total, 0)
-    Logger.debug("Prep AddValueNode: Current total=#{current_total}, Value to add=#{value_to_add}")
-    {:ok, %{current_total: current_total, value_to_add: value_to_add}}
-  end
-
-  # 2. Execute: Perform the addition
-  def exec({:ok, %{current_total: total, value_to_add: value}}) do
-    new_total = total + value
-    Logger.debug("Exec AddValueNode: New total=#{new_total}")
-    {:ok, new_total}
-  end
-  def exec({:error, reason}) do
-     # Propagate prep error
-     Logger.error("AddValueNode skipped due to prep error: #{inspect(reason)}")
-    {:error, reason}
-  end
-
-  # 3. Post-process: Update the shared state and determine next step
-  def post(shared_state, _prep_data, {:ok, new_total}) do
-    updated_state = Map.put(shared_state, :total, new_total)
-    Logger.debug("Post AddValueNode: Updated state: #{inspect(updated_state)}")
-    # Transition to the default next node
-    {:ok, {:default, updated_state}}
-  end
-  def post(shared_state, _prep_data, {:error, reason}) do
-     # If exec failed, log it and maybe transition differently
-     Logger.error("AddValueNode failed in exec: #{inspect(reason)}")
-     updated_state = Map.put(shared_state, :error_info, {__MODULE__, :exec_failed, reason})
-     # Transition via an :error path
-     {:ok, {:error, updated_state}}
-  end
-end
-```
-
-## Node Types
-
-PocketFlex might define different node types or allow customization:
-
-- **Regular Node**: Executes sequentially.
-- **Async Node**: Executes potentially in a separate process (`Task.async`?).
-- **Batch Node**: Processes multiple items (perhaps using `Task.async_stream`).
-- **Router Node**: Primarily determines control flow based on state, with minimal `exec` logic.
-- **Agent Node**: Uses an LLM in `exec` to decide the `next_action_atom` in `post`.
-
-Refer to the specific PocketFlex implementation for available node types and behaviours.
-
----
-# START: Content from pocket_flex/rules_files/docs/core_abstraction/communication.md
----
-layout: default
-title: "Communication (Shared State)"
-parent: "Core Abstraction"
-nav_order: 2
----
-
-# Communication: Shared State
-
-PocketFlex nodes communicate and share data primarily through an immutable **Shared State** map. This map is passed from node to node throughout the execution of a flow.
-
-## Concept
-
-- **Immutable Map**: The shared state is typically an Elixir map (`%{:key => value}`). Because Elixir data structures are immutable, each node receives the state map, and the `post/3` function returns a *new*, updated state map. This prevents side effects and makes flows easier to reason about.
-- **Centralized Data**: All data required by downstream nodes or produced by upstream nodes resides in this shared state map.
-- **Node Responsibility**:
-    - The `prep/1` function reads necessary data *from* the state.
-    - The `post/3` function writes results *to* a new version of the state map.
-
-## Example
-
-```elixir
-# Initial state provided to the flow
-initial_state = %{
-  user_id: "user123",
-  input_text: "Some text to process.",
-  results: %{},
-  config: %{mode: :fast}
-}
-
-# --- Node A runs ---
-# Prep reads :input_text
-# Exec processes the text
-# Post updates the state
-state_after_node_a = %{
-  user_id: "user123",
-  input_text: "Some text to process.",
-  results: %{
-    processed_text: "SOME TEXT TO PROCESS."
-  },
-  config: %{mode: :fast}
-}
-
-# --- Node B runs ---
-# Prep reads results.processed_text
-# Exec analyzes the processed text
-# Post updates the state
-state_after_node_b = %{
-  user_id: "user123",
-  input_text: "Some text to process.",
-  results: %{
-    processed_text: "SOME TEXT TO PROCESS.",
-    analysis: %{word_count: 4, sentiment: :neutral}
-  },
-  config: %{mode: :fast}
-}
-
-# And so on...
-```
-
-## Best Practices
-
-- **Keep it Serializable**: If you need to persist the state or pass it between processes, ensure the values in the map are easily serializable (basic Elixir types, simple structs). Avoid storing PIDs, function references, or complex ETS tables directly in the state if persistence or distribution is needed.
-- **Structured Keys**: Use descriptive atoms or nested maps for keys to keep the state organized (e.g., `%{results: %{analysis: ...}}` instead of `%{analysis_result: ...}`).
-- **Minimize State**: Only store data in the shared state that is truly needed by subsequent nodes. Avoid cluttering it with temporary data used only within a single node.
-- **Consider Alternatives for Large Data**: For very large data (e.g., large files, embeddings), consider storing them outside the main state map (e.g., in ETS, a database, or cloud storage) and passing only references (IDs, paths) in the state map.
-
----
-# START: Content from pocket_flex/rules_files/docs/core_abstraction/control_flow.md
----
-layout: default
-title: "Control Flow"
-parent: "Core Abstraction"
-nav_order: 3
----
-
-# Control Flow
-
-PocketFlex manages the sequence of execution between [Nodes](./node.md) based on the flow definition and the runtime results returned by each node's `post/3` callback.
-
-## Transition Logic
-
-- **Flow Definition**: The overall structure (which nodes connect to which) is typically defined when the flow is created. This definition maps `next_action_atom` results from a source node to a destination node (or a special `:end` state).
-- **`post/3` Return Value**: The `post/3` function of a node determines the *immediate next step* by returning `{:ok, {next_action_atom, updated_state}}`.
-- **`next_action_atom`**: This atom (e.g., `:default`, `:success`, `:error`, `:user_input_required`, `:condition_met`) dictates which transition path to take from the current node.
-
-## Example Flow Definition (Conceptual)
-
-```elixir
-# Hypothetical flow definition using PocketFlex API
-PocketFlex.define(
-  start_node: MyProject.Nodes.StartNode,
-  nodes: [
-    # StartNode transitions
-    %{module: MyProject.Nodes.StartNode,
-      transitions: %{
-        default: MyProject.Nodes.ProcessDataNode, # Default path
-        needs_auth: MyProject.Nodes.AuthNode      # Conditional path
-      }
-    },
-
-    # ProcessDataNode transitions
-    %{module: MyProject.Nodes.ProcessDataNode,
-      transitions: %{
-        default: MyProject.Nodes.EndNode,       # Successful processing
-        error: MyProject.Nodes.ErrorHandlingNode # Error during processing
-      }
-    },
-
-    # AuthNode transitions
-    %{module: MyProject.Nodes.AuthNode,
-      transitions: %{
-        success: MyProject.Nodes.ProcessDataNode, # If auth succeeds, go process
-        failure: MyProject.Nodes.EndNode          # If auth fails, end
-      }
-    },
-
-    # ErrorHandlingNode transitions
-    %{module: MyProject.Nodes.ErrorHandlingNode,
-      transitions: %{
-        default: MyProject.Nodes.EndNode         # Always end after logging error
-      }
-    },
-
-    # EndNode is a terminal state (no transitions out)
-    %{module: MyProject.Nodes.EndNode, transitions: %{}}
-  ]
-)
-```
-
-## How it Works (Simplified)
-
-1. The flow starts at the `start_node` (`StartNode` in the example).
-2. `StartNode.prep/1` runs.
-3. `StartNode.exec/1` runs.
-4. `StartNode.post/3` runs and returns, say, `{:ok, {:default, updated_state}}`.
-5. PocketFlex looks up the `:default` transition for `StartNode` in the flow definition, finding `ProcessDataNode`.
-6. The `updated_state` is passed to `ProcessDataNode.prep/1`.
-7. `ProcessDataNode.exec/1` runs. Let's say it returns `{:error, :db_timeout}`.
-8. `ProcessDataNode.post/3` receives the error and returns `{:ok, {:error, state_with_error_info}}`.
-9. PocketFlex looks up the `:error` transition for `ProcessDataNode`, finding `ErrorHandlingNode`.
-10. The `state_with_error_info` is passed to `ErrorHandlingNode.prep/1`.
-11. ... and so on, until a node transitions to a defined end state or has no further transitions defined.
-
-## Key Concepts
-
-- **Atom-Based Transitions**: Using atoms (`:default`, `:error`, etc.) for transition keys is conventional and efficient in Elixir.
-- **Explicit Paths**: Define all expected transitions clearly in the flow definition.
-- **Error Handling**: Design dedicated error paths or nodes, triggered by specific error atoms returned from `post/3`.
-
----
-# START: Content from pocket_flex/rules_files/docs/design_pattern/agent.md
----
-layout: default
-title: "Agent"
-parent: "Design Patterns"
-nav_order: 1
----
-
-# Design Pattern: Agent
-
-An "Agent" in the context of LLM frameworks like PocketFlex typically refers to a system that uses an LLM to make decisions about what actions to take next.
-
-## Concept in PocketFlex
-
-Instead of a monolithic "Agent" object, an agentic pattern in PocketFlex is often implemented using a combination of:
-
-1.  **LLM Utility**: A utility module (like the `LLMCaller` example using LangchainEx) that allows nodes to invoke an LLM.
-2.  **Agentic Node(s)**: One or more PocketFlex [Nodes](../core_abstraction/node.md) whose primary purpose is to:
-    *   Prepare a prompt for the LLM based on the current [Shared State](../core_abstraction/communication.md) and available tools/actions.
-    *   Execute the LLM call via the utility.
-    *   Post-process the LLM response to determine the next action (which might be calling another tool/utility node or deciding the next step in the [Control Flow](../core_abstraction/control_flow.md)).
-3.  **Tool Nodes/Utilities**: Regular Elixir modules or specific PocketFlex nodes that perform concrete actions (e.g., web search, database query, file I/O), which the agentic node can decide to invoke (often indirectly by setting specific flags or data in the shared state that trigger a transition to the tool node).
-
-## Example Flow
-
-```mermaid
-graph TD
-    A[Start: User Query] --> B{Agent Node: Plan Next Step};
-    B -- Decision: Need Search --> C{Tool Node: Web Search};
-    B -- Decision: Need DB Info --> D{Tool Node: Database Query};
-    B -- Decision: Answer Directly --> E{Node: Format Answer};
-    C --> F{Agent Node: Process Search Results};
-    D --> G{Agent Node: Process DB Results};
-    F --> B; # Re-plan based on search
-    G --> B; # Re-plan based on DB info
-    E --> Z[End: Show Answer];
-```
-
-## Implementation Notes
-
-- **Prompt Engineering**: The core of the agentic node lies in constructing the right prompt for the LLM. This prompt should include:
-    - The overall goal.
-    - The current state/context.
-    - Available actions/tools (with descriptions).
-    - Instructions on how the LLM should format its response (e.g., specify the next action/tool and its parameters).
-- **Parsing LLM Output**: The `post/3` function of the agentic node needs to reliably parse the LLM's response to extract the chosen action and parameters.
-- **State Management**: The agentic node updates the shared state with its plan or the results of tool executions.
-- **Control Flow**: Transitions in the flow definition (`:need_search`, `:need_db`, `:answer_ready`) are based on the parsed LLM decision returned by the agentic node's `post/3` function using different `next_action_atom` values.
-- **Tool Execution**: Often, the agent node doesn't call the tool directly in `exec/1`. Instead, its `post/3` function returns a specific atom (e.g., `:invoke_web_search`), and the flow definition routes this to the `WebSearchNode`. The `WebSearchNode` performs the action, and its `post/3` likely transitions back to the agent node with the results added to the shared state.
-
-This modular approach allows for better testing and separation of concerns compared to a single, large agent function.
-
----
-# START: Content from pocket_flex/rules_files/docs/design_pattern/rag.md
----
-layout: default
-title: "RAG (Retrieval-Augmented Generation)"
-parent: "Design Patterns"
-nav_order: 2
----
-
-# Design Pattern: RAG (Retrieval-Augmented Generation)
-
-RAG combines information retrieval with large language model (LLM) generation to produce answers grounded in external knowledge.
-
-## Concept in PocketFlex
-
-A RAG pipeline in PocketFlex is typically implemented as a flow with distinct [Nodes](../core_abstraction/node.md) for each stage:
-
-1.  **Query Formulation Node (Optional)**: Takes the initial user query from the [Shared State](../core_abstraction/communication.md) and potentially reformulates it (using an LLM via a utility like `LLMCaller`) into a better query for retrieval.
-2.  **Retrieval Node**:
-    *   Takes the (possibly reformulated) query.
-    *   Uses a utility function to search a knowledge base (e.g., a vector store like ChromaDB, Qdrant, or a traditional search index like Elasticsearch) for relevant documents/text chunks.
-    *   This utility might involve generating embeddings (potentially using LangchainEx embeddings modules) and performing similarity searches.
-    *   Adds the retrieved documents/chunks to the shared state.
-3.  **Synthesis Node**:
-    *   Takes the original query and the retrieved documents from the shared state.
-    *   Constructs a prompt for an LLM, including the query and the retrieved context.
-    *   Uses an LLM utility (like `LLMCaller`) to generate an answer based *only* on the provided context.
-    *   Adds the final generated answer to the shared state.
-
-## Example Flow
-
-```mermaid
-graph TD
-    A[Start: User Query] --> B(Node: Retrieve Docs);
-    B --> C(Node: Synthesize Answer);
-    C --> D[End: Final Answer];
-
-    subgraph "Optional Preprocessing"
-        A --> A1(Node: Reformulate Query);
-        A1 --> B;
-    end
-```
-
-## Implementation Notes
-
-- **Indexing (Offline Process)**: The knowledge base (e.g., vector store) needs to be populated beforehand. This involves:
-    - Loading documents (using Elixir file reading, HTTP clients like `Req`, or LangchainEx `DocumentLoaders`).
-    - Splitting documents into chunks (using custom logic or LangchainEx `TextSplitters`).
-    - Generating embeddings for each chunk (using an embedding model via LangchainEx or another library).
-    - Storing the chunks and their embeddings in the chosen vector store/index.
-- **Retrieval Utility**: The `exec/1` function of the Retrieval Node calls a utility that encapsulates the logic for:
-    - Generating an embedding for the input query.
-    - Performing a similarity search against the vector store.
-    - Returning the relevant document chunks.
-- **Synthesis Node Prompt**: The prompt engineering for the Synthesis Node is crucial. It must instruct the LLM to base its answer strictly on the retrieved context provided in the prompt to avoid hallucination and ensure grounding.
-- **Error Handling**: Implement error handling in the [Control Flow](../core_abstraction/control_flow.md) for cases like retrieval failure or LLM errors during synthesis.
-
-Building RAG with PocketFlex involves composing these specialized nodes, leveraging external Elixir libraries or custom utilities for tasks like embedding generation and vector search within the node implementations.
-
----
-# START: Content from pocket_flex/rules_files/docs/design_pattern/mapreduce.md
----
-layout: default
-title: "MapReduce"
-parent: "Design Patterns"
-nav_order: 3
----
-
-# Design Pattern: MapReduce
-
-The MapReduce pattern involves splitting a large task into smaller, independent sub-tasks (Map), processing them concurrently, and then combining the results (Reduce).
-
-## Concept in PocketFlex
-
-PocketFlex itself might not have a dedicated "MapReduce Node" type, but this pattern can be implemented using standard Elixir concurrency features orchestrated by PocketFlex nodes:
-
-1.  **Setup Node**: Prepares the data. Reads the large dataset or list of items to be processed from the [Shared State](../core_abstraction/communication.md) or an external source.
-2.  **Map Node**:
-    *   Takes the list of items from the Setup Node.
-    *   Uses `Task.async_stream/3` or `Task.async_stream/5` to concurrently apply a mapping function to each item. This mapping function might:
-        *   Perform a simple transformation.
-        *   Call an external utility (including LLMs via `LLMCaller`).
-        *   Even run a sub-flow using PocketFlex (though this adds complexity).
-    *   The `exec/1` function manages the `Task.async_stream` and collects all results (which could be `{:ok, result}` or `{:error, reason}` tuples).
-    *   Adds the list of results (including any errors) to the shared state.
-3.  **Reduce Node**:
-    *   Takes the list of results from the Map Node's output in the shared state.
-    *   Processes the results:
-        *   Filters out or handles errors.
-        *   Aggregates, summarizes, or combines the successful results into a final output.
-    *   Adds the final aggregated result to the shared state.
-
-## Example Flow
-
-```mermaid
-graph TD
-    A[Start: Input Data] --> B(Node: Setup Data Split);
-    B --> C{Node: Map Tasks Concurrently};
-    C --> D(Node: Reduce Results);
-    D --> E[End: Final Result];
-    C -- Error Handling --> F(Node: Handle Task Errors);
-    F --> D; # Feed error summary to Reduce?
-```
-
-## Implementation Notes
-
-- **Concurrency with `Task.async_stream`**: The core of the Map stage is leveraging Elixir's built-in task management. The Map Node's `exec/1` function would look something like this (simplified):
-    ```elixir
-    def exec({:ok, %{items: items_to_process}}) do
-      results =
-        items_to_process
-        |> Task.async_stream(&process_single_item/1, timeout: 60000, max_concurrency: 10)
-        |> Enum.map(fn {:ok, result} -> result end) # Task.async_stream returns {:ok, result} tuples
-
-      # results will be a list of {:ok, item_result} or {:error, reason} tuples
-      {:ok, results}
-    end
-
-    defp process_single_item(item) do
-      # Logic to process one item
-      # May call utilities, LLMs, etc.
-      # Must return {:ok, result} or {:error, reason}
-      # Example:
-      case MyUtility.process(item) do
-         {:ok, processed} -> {:ok, processed}
-         {:error, err} -> {:error, {item, err}} # Include original item in error
-      end
-    end
-    ```
-- **Error Handling**: The `Task.async_stream` collects results including errors. The Reduce Node must explicitly handle potential `{:error, reason}` tuples in the results list.
-- **Resource Management**: Be mindful of `max_concurrency` and `timeout` options in `Task.async_stream` to avoid overwhelming system resources or external APIs.
-- **State**: The large list of items might be passed via the shared state, or the Setup Node might pass references (e.g., IDs to fetch from a DB) to keep the state map smaller, with the Map Node fetching details within `process_single_item/1`.
-
----
-# START: Content from pocket_flex/rules_files/docs/design_pattern/workflow.md
----
-layout: default
-title: "Workflow"
-parent: "Design Patterns"
-nav_order: 4
----
-
-# Design Pattern: Workflow
-
-A workflow represents a more complex sequence of tasks with potential branching, conditions, and loops, often orchestrating multiple simpler patterns.
-
-## Concept in PocketFlex
-
-A workflow in PocketFlex is simply a well-defined **Flow** composed of multiple [Nodes](../core_abstraction/node.md) connected via specific [Control Flow](../core_abstraction/control_flow.md) transitions.
-
-Key elements for building complex workflows include:
-
-- **Conditional Transitions**: A node's `post/3` function can return different `next_action_atom` values based on the `exec/1` result or data in the [Shared State](../core_abstraction/communication.md). The flow definition maps these atoms to different downstream nodes, creating branches.
-- **Router Nodes**: Nodes whose primary purpose is to evaluate the shared state and determine the next path, often with minimal computation in `exec/1`. They return different atoms from `post/3` to direct the flow.
-- **Looping**: Loops can be implemented by defining transitions that route back to an earlier node in the flow. A node within the loop must eventually return a different `next_action_atom` to break the loop, typically based on conditions met in the shared state (e.g., a counter reaching a limit, a specific result being found).
-- **Sub-Flows (Conceptual)**: While PocketFlex might not have explicit sub-flow support, you can conceptually achieve this by having a node's `exec/1` function run another, separate PocketFlex flow definition using `PocketFlex.run/2`. The results of the sub-flow are then processed in the calling node's `post/3`. (This adds complexity and requires careful state management).
-
-## Example Workflow: Simple Approval Process
-
-```mermaid
-graph TD
-    A[Start: Submit Data] --> B(Node: Validate Data);
-    B -- Valid --> C{Node: Request Approval};
-    B -- Invalid --> D(Node: Notify User of Error);
-    C -- Approved --> E(Node: Process Approved Data);
-    C -- Rejected --> F(Node: Notify User of Rejection);
-    D --> Z[End];
-    E --> Z[End];
-    F --> Z[End];
-```
-
-## Implementation Notes
-
-- **Clear Flow Definition**: Define all nodes and their transitions explicitly when creating the flow. Visualizing it with Mermaid or similar tools is highly recommended.
-- **State Design**: Carefully design the shared state map to hold all necessary information for decision-making at branch points (e.g., validation status, approval status, loop counters).
-- **Node Granularity**: Break down the workflow into logical, single-responsibility nodes. Avoid putting too much complex branching logic inside a single node's `post/3` function; use dedicated router nodes or clear conditional transitions instead.
-- **Error Handling**: Define clear error paths (`:error` transitions) at each stage where failures can occur.
-
-Workflows in PocketFlex leverage the core concepts of nodes, shared state, and control flow to orchestrate complex sequences of operations.
-
----
-# START: Content from pocket_flex/rules_files/docs/design_pattern/multi_agent.md
----
-layout: default
-title: "Multi-Agent"
-parent: "Design Patterns"
-nav_order: 5
----
-
-# Design Pattern: Multi-Agent System
-
-A multi-agent system involves multiple independent agents collaborating or competing to achieve a goal.
-
-## Concept in PocketFlex
-
-Implementing a multi-agent system in PocketFlex and Elixir involves orchestrating multiple, potentially concurrent, PocketFlex flows or agentic processes.
-
-Several approaches are possible:
-
-1.  **Orchestrator Flow**:
-    *   A main PocketFlex flow acts as the orchestrator.
-    *   Specific nodes within this flow are responsible for launching other PocketFlex flows (representing individual agents) perhaps using `Task.async` or by starting supervised `GenServer` processes that run the agent flows.
-    *   The orchestrator node waits for results from the agent flows (e.g., via `Task.await`, message passing from `GenServer`s) and manages their interaction or aggregates their results.
-    *   Communication between agents might happen indirectly via updates to a shared resource (like a database or ETS table) managed or monitored by the orchestrator, or via direct message passing if using stateful processes like `GenServer`s.
-
-2.  **Independent Flows with Shared Resources**:
-    *   Multiple PocketFlex flows run independently (potentially as separate OTP applications or supervised processes).
-    *   They coordinate or communicate by reading from and writing to shared resources (e.g., a database, a shared ETS table, a message queue like RabbitMQ).
-    *   Each flow might represent an agent with a specific role (e.g., Researcher Agent, Writer Agent, Reviewer Agent).
-
-3.  **Agent Processes (GenServers)**:
-    *   Each agent is implemented as a `GenServer` or similar OTP process.
-    *   The agent's internal logic might be implemented using a PocketFlex flow, which the `GenServer` runs via `PocketFlex.run/2` in its message handlers.
-    *   Agents communicate by sending messages (`GenServer.call/3`, `GenServer.cast/2`) to each other, possibly managed via Elixir's `Registry` for discovery.
-
-## Example Flow (Orchestrator Approach)
-
-```mermaid
-graph TD
-    A[Start: Main Goal] --> B{Orchestrator Node: Assign Tasks};
-    B --> C(Task: Run Researcher Agent Flow);
-    B --> D(Task: Run Writer Agent Flow);
-    C --> E{Orchestrator Node: Collect Research};
-    D --> F{Orchestrator Node: Collect Draft};
-    E --> G{Orchestrator Node: Synthesize};
-    F --> G;
-    G --> H[End: Final Output];
-```
-
-## Implementation Notes
-
-- **Concurrency Model**: Choose the right Elixir concurrency mechanism (`Task`, `GenServer`, `Registry`) based on the required agent lifetime, state management needs, and communication patterns.
-- **Communication**: Define clear communication protocols between agents, whether via shared state, message passing, or shared external resources.
-- **State Management**: If agents are stateful (e.g., `GenServer`s), manage their state carefully. If using shared resources like databases or ETS, handle potential concurrency issues (race conditions, locking).
-- **Supervision**: If running multiple agent flows as processes, use OTP Supervisors to ensure fault tolerance and manage the lifecycle of agent processes.
-- **Complexity**: Multi-agent systems can become complex quickly. Start simple and clearly define the roles and interactions of each agent.
-
-PocketFlex provides the building blocks (nodes, flows) for agent logic, while Elixir/OTP provides the powerful concurrency and fault-tolerance mechanisms needed to orchestrate multiple agents effectively.
-
----
-# START: Content from pocket_flex/rules_files/docs/tutorials/hello_world.md
----
-layout: default
-title: "Hello World"
-parent: "Tutorials"
-nav_order: 1
----
-
 # Tutorial: Hello World
 
 This tutorial demonstrates the most basic PocketFlex flow: two nodes passing a simple message.
@@ -905,7 +236,7 @@ defmodule MyHelloApp.Nodes.ReceiverNode do
   def prep(shared_state) do
     case Map.fetch(shared_state, :greeting) do
       {:ok, greeting} -> {:ok, greeting}
-      :error ->
+      :error -> 
         Logger.error("ReceiverNode: Greeting not found in state!")
         {:error, :greeting_missing}
     end
@@ -925,7 +256,7 @@ defmodule MyHelloApp.Nodes.ReceiverNode do
   def post(shared_state, _prep_data, {:error, reason}) do
     Logger.error("ReceiverNode: Failed - #{inspect(reason)}")
     updated_state = Map.put(shared_state, :error_info, {__MODULE__, reason})
-    {:ok, {:error, updated_state}} # Use error transition
+    {:ok, {:error, updated_state}}
   end
 end
 ```
@@ -945,10 +276,10 @@ defmodule MyHelloApp.Flow do
     PocketFlex.define(
       start_node: Nodes.InitiatorNode,
       nodes: [
-        %{module: Nodes.InitiatorNode,
+        %{module: Nodes.InitiatorNode, 
           transitions: %{default: Nodes.ReceiverNode}
         },
-        %{module: Nodes.ReceiverNode,
+        %{module: Nodes.ReceiverNode, 
           transitions: %{default: :end, error: :end} # End on default or error
         }
       ]
@@ -959,23 +290,21 @@ end
 
 ## 3. Run the Flow
 
-Finally, we create an entry point to run the flow.
-
 ```elixir
-# lib/my_hello_app.ex (or a script)
+# lib/my_hello_app.ex
 defmodule MyHelloApp do
   require Logger
   alias MyHelloApp.Flow
   # alias PocketFlex
 
-  def run_hello_world do
-    initial_state = %{} # Start with empty state
+  def run_hello do
+    initial_state = %{}
     flow_definition = Flow.define_hello_flow()
 
     Logger.info("Starting Hello World flow...")
     case PocketFlex.run(flow_definition, initial_state) do
       {:ok, final_state} ->
-        Logger.info("Hello World flow completed successfully.")
+        Logger.info("Hello World flow completed.")
         IO.inspect(final_state, label: "Final State")
       {:error, reason, final_state} ->
         Logger.error("Hello World flow failed: #{inspect(reason)}")
@@ -983,22 +312,412 @@ defmodule MyHelloApp do
     end
   end
 end
-
-# To run (example):
-# mix run -e "MyHelloApp.run_hello_world()"
 ```
 
-This simple example illustrates the basic mechanics: defining nodes with `prep`, `exec`, `post`, connecting them in a flow definition, and running the flow with an initial state.
+## Enhancements
+
+- **Memory Management**: Limit the size of the `:history` list passed to the LLM to manage context window size and cost.
+- **Streaming Responses**: Modify `CallLLM` and `DisplayResponse` to use the streaming capabilities of the LLM (if supported by the LangchainEx model/utility) for a better user experience.
+- **Error Recovery**: Improve error handling logic.
+- **State Persistence**: Save/load conversation history from a database.
 
 ---
-# START: Content from pocket_flex/rules_files/docs/tutorials/chatbot.md
----
-layout: default
-title: "Chatbot"
-parent: "Tutorials"
-nav_order: 2
----
+# Design Pattern: RAG (Retrieval-Augmented Generation)
 
+RAG combines information retrieval with large language model (LLM) generation to produce answers grounded in external knowledge.
+
+## Concept in PocketFlex
+
+A RAG pipeline in PocketFlex is typically implemented as a flow with distinct [Nodes](../core_abstraction/node.md) for each stage:
+
+1.  **Query Formulation Node (Optional)**: Takes the initial user query from the [Shared State](../core_abstraction/communication.md) and potentially reformulates it (using an LLM via a utility like `LLMCaller`) into a better query for retrieval.
+2.  **Retrieval Node**: 
+    *   Takes the (possibly reformulated) query.
+    *   Uses a utility function to search a knowledge base (e.g., a vector store like ChromaDB, Qdrant, or a traditional search index like Elasticsearch) for relevant documents/text chunks.
+    *   This utility might involve generating embeddings (potentially using LangchainEx embeddings modules) and performing similarity searches.
+    *   Adds the retrieved documents/chunks to the shared state.
+3.  **Synthesis Node**: 
+    *   Takes the original query and the retrieved documents from the shared state.
+    *   Constructs a prompt for an LLM, including the query and the retrieved context.
+    *   Uses an LLM utility (like `LLMCaller`) to generate an answer based *only* on the provided context.
+    *   Adds the final generated answer to the shared state.
+
+## Example Flow
+
+```mermaid
+graph TD
+    A[Start: User Query] --> B{Node: Retrieve Docs};
+    B --> C(Node: Synthesize Answer);
+    C --> D[End: Final Answer];
+    
+    subgraph "Optional Preprocessing"
+        A --> A1(Node: Reformulate Query);
+        A1 --> B;
+    end
+```
+
+## Implementation Notes
+
+- **Leverage the `rag` Library**: Use [`rag`](https://hexdocs.pm/rag/Rag.html) to scaffold your RAG system. Install with `{:rag, ">= 0.2.2"}` in `mix.exs` and run `mix rag.install --vector-store <pgvector|chroma>` to generate ingestion, retrieval, and generation modules.
+- **Ingestion Pipeline**: The installer provides a pipeline for reading `.txt` (or other) files, chunking, embedding, and storing in your vector store (e.g., pgvector, chroma). Extend the ingestion script to handle your file types (Elixir, Markdown, etc.) as needed.
+- **PocketFlex Integration**: Implement RAG as one or more PocketFlex nodes:
+    - **Retrieval Node**: The `exec/1` function should call your retrieval utility (from the generated `rag` module), passing the query from shared state, and return the retrieved chunks in the result. Example:
+      ```elixir
+      def exec({:ok, %{query: query}}) do
+        case MyApp.Rag.retrieve(query) do
+          {:ok, docs} -> {:ok, %{docs: docs}}
+          {:error, reason} -> {:error, reason}
+        end
+      end
+      ```
+    - **Synthesis Node**: The `exec/1` function should assemble the prompt from the query and retrieved docs, then call your LLM utility/module. Example:
+      ```elixir
+      def exec({:ok, %{query: query, docs: docs}}) do
+        prompt = MyApp.Rag.build_prompt(query, docs)
+        case MyApp.LLM.call(prompt) do
+          {:ok, answer} -> {:ok, %{answer: answer}}
+          {:error, reason} -> {:error, reason}
+        end
+      end
+      ```
+    - **Error Handling**: Use pattern matching in function heads for error handling and data extraction.
+    - **State Shape**: Clearly document expected keys (e.g., `:query`, `:docs`, `:answer`) for each node.
+- **Vector Store**: `rag` does not abstract vector stores—work directly with your chosen store. Generated code supports hybrid retrieval (semantic + fulltext) and can be customized.
+- **Retrieval**: Implement retrieval functions that use embeddings and/or fulltext search. Use `rag`'s utilities for result fusion (e.g., Reciprocal Rank Fusion), concatenation, and deduplication. You can combine multiple retrieval sources.
+- **Generation**: After retrieval, construct prompts from the query and retrieved chunks. Use your preferred LLM serving (Nx.Serving, Ollama, LangchainEx, or external API). `rag` supports prompt assembly and context management, and can be integrated with other libraries for generation.
+- **Evaluation**: Use the generated evaluation script (`mix rag.gen_eval`) to benchmark your RAG pipeline. Adapt it to your domain for best results.
+- **Telemetry**: `rag` emits telemetry events for each pipeline step—use these for monitoring, debugging, and UX improvements.
+- **Extensibility**: You can swap out or extend any step (chunking, embedding, retrieval, generation) as needed. `rag` is modular and works well with Elixir idioms and OTP patterns.
+
+### Example Integration with LangchainEx
+
+- Use the retrieval output to augment user messages or prompts for LangchainEx or other LLM libraries. See [Bitcrowd's blog post](https://bitcrowd.dev/a-rag-library-for-elixir) for a real-world integration example.
+
+```elixir
+# Example: Augmenting a user message with retrieved context
+defp augment_user_message(user_message) do
+  %{role: :user, content: query} = user_message
+  rag_generation = Chatbot.Rag.build_generation(query)
+  {:ok, %{user_message | content: rag_generation.prompt}, rag_generation}
+end
+```
+
+- You can use this pattern to feed context into any LLM pipeline.
+
+### Additional Recommendations
+- Always document the state shape and transitions for each node.
+- Handle errors at each step (ingestion, retrieval, generation) and propagate error atoms in the flow.
+- Use explicit citations in generated answers when possible.
+- Continuously evaluate and monitor your RAG system for quality and performance.
+
+## Best Practices
+
+- Separate retrieval and synthesis logic for testability.
+- Use clear state keys for query, docs, and answer.
+- Document the shape of state at each step.
+---
+# Design Pattern: Workflow
+
+A workflow represents a more complex sequence of tasks with potential branching, conditions, and loops, often orchestrating multiple simpler patterns.
+
+## Concept in PocketFlex
+
+A workflow in PocketFlex is simply a well-defined **Flow** composed of multiple [Nodes](../core_abstraction/node.md) connected via specific [Control Flow](../core_abstraction/control_flow.md) transitions.
+
+Key elements for building complex workflows include:
+
+- **Conditional Transitions**: A node's `post/3` function can return different `next_action_atom` values based on the `exec/1` result or data in the [Shared State](../core_abstraction/communication.md). The flow definition maps these atoms to different downstream nodes, creating branches.
+- **Router Nodes**: Nodes whose primary purpose is to evaluate the shared state and determine the next path, often with minimal computation in `exec/1`. They return different atoms from `post/3` to direct the flow.
+- **Looping**: Loops can be implemented by defining transitions that route back to an earlier node in the flow. A node within the loop must eventually return a different `next_action_atom` to break the loop, typically based on conditions met in the shared state (e.g., a counter reaching a limit, a specific result being found).
+- **Sub-Flows (Conceptual)**: While PocketFlex might not have explicit sub-flow support, you can conceptually achieve this by having a node's `exec/1` function run another, separate PocketFlex flow definition using `PocketFlex.run/2`. The results of the sub-flow are then processed in the calling node's `post/3`. (This adds complexity and requires careful state management).
+
+## Example Workflow: Simple Approval Process
+
+```mermaid
+graph TD
+    A[Start: Submit Data] --> B{Node: Validate Data};
+    B -- Valid --> C{Node: Request Approval}; 
+    B -- Invalid --> D(Node: Notify User of Error);
+    C -- Approved --> E(Node: Process Approved Data);
+    C -- Rejected --> F(Node: Notify User of Rejection);
+    D --> Z[End];
+    E --> Z[End];
+    F --> Z[End];
+```
+
+## Implementation Notes
+
+- **Clear Flow Definition**: Define all nodes and their transitions explicitly when creating the flow. Visualizing it with Mermaid or similar tools is highly recommended.
+- **State Design**: Carefully design the shared state map to hold all necessary information for decision-making at branch points (e.g., validation status, approval status, loop counters).
+- **Node Granularity**: Break down the workflow into logical, single-responsibility nodes. Avoid putting too much complex branching logic inside a single node's `post/3` function; use dedicated router nodes or clear conditional transitions instead.
+- **Error Handling**: Define clear error paths (`:error` transitions) at each stage where failures can occur.
+
+## Best Practices
+
+- Define all nodes and transitions explicitly.
+- Visualize flows with diagrams (e.g., Mermaid).
+- Design state shape for decision points and branching.
+- Use dedicated router nodes for clarity.
+- Handle errors with explicit error transitions and nodes.
+
+Workflows in PocketFlex leverage the core concepts of nodes, shared state, and control flow to orchestrate complex sequences of operations.
+
+---
+# Design Pattern: Multi-Agent System
+
+A multi-agent system involves multiple independent agents collaborating or competing to achieve a goal.
+
+## Concept in PocketFlex
+
+Implementing a multi-agent system in PocketFlex and Elixir involves orchestrating multiple, potentially concurrent, PocketFlex flows or agentic processes.
+
+Several approaches are possible:
+
+1.  **Orchestrator Flow**: 
+    *   A main PocketFlex flow acts as the orchestrator.
+    *   Specific nodes within this flow are responsible for launching other PocketFlex flows (representing individual agents) perhaps using `Task.async` or by starting supervised `GenServer` processes that run the agent flows.
+    *   The orchestrator node waits for results from the agent flows (e.g., via `Task.await`, message passing from `GenServer`s) and manages their interaction or aggregates their results.
+    *   Communication between agents might happen indirectly via updates to a shared resource (like a database or ETS table) managed or monitored by the orchestrator, or via direct message passing if using stateful processes like `GenServer`s.
+
+2.  **Independent Flows with Shared Resources**: 
+    *   Multiple PocketFlex flows run independently (potentially as separate OTP applications or supervised processes).
+    *   They coordinate or communicate by reading from and writing to shared resources (e.g., a database, a shared ETS table, a message queue like RabbitMQ).
+    *   Each flow might represent an agent with a specific role (e.g., Researcher Agent, Writer Agent, Reviewer Agent).
+
+3.  **Agent Processes (GenServers)**:
+    *   Each agent is implemented as a `GenServer` or similar OTP process.
+    *   The agent's internal logic might be implemented using a PocketFlex flow, which the `GenServer` runs via `PocketFlex.run/2` in its message handlers.
+    *   Agents communicate by sending messages (`GenServer.call/3`, `GenServer.cast/2`) to each other, possibly managed via Elixir's `Registry` for discovery.
+
+## Example Flow
+
+```mermaid
+graph TD
+    A[Start: Main Goal] --> B{Orchestrator Node: Assign Tasks};
+    B --> C(Task: Run Researcher Agent Flow);
+    B --> D(Task: Run Writer Agent Flow);
+    C --> E{Orchestrator Node: Collect Research};
+    D --> F{Orchestrator Node: Collect Draft};
+    E --> G{Orchestrator Node: Synthesize};
+    F --> G;
+    G --> H[End: Final Output];
+```
+
+## Implementation Notes
+
+- **Concurrency Model**: Choose the right Elixir concurrency mechanism (`Task`, `GenServer`, `Registry`) based on the required agent lifetime, state management needs, and communication patterns.
+- **Communication**: Define clear communication protocols between agents, whether via shared state, message passing, or shared external resources.
+- **State Management**: If agents are stateful (e.g., `GenServer`s), manage their state carefully. If using shared resources like databases or ETS, handle potential concurrency issues (race conditions, locking).
+- **Supervision**: If running multiple agent flows as processes, use OTP Supervisors to ensure fault tolerance and manage the lifecycle of agent processes.
+- **Complexity**: Multi-agent systems can become complex quickly. Start simple and clearly define the roles and interactions of each agent.
+
+## Best Practices
+
+- Isolate agent responsibilities for testability.
+- Prefer message passing or ETS for agent communication.
+- Supervise all agent processes for fault tolerance.
+
+## References
+- See [Workflow](./workflow.md) for orchestration patterns.
+- See [Node](../core_abstraction/node.md) for node design.
+
+PocketFlex provides the building blocks (nodes, flows) for agent logic, while Elixir/OTP provides the powerful concurrency and fault-tolerance mechanisms needed to orchestrate multiple agents effectively.
+---
+# Node
+
+The fundamental unit of computation in PocketFlex. Each Node encapsulates a specific piece of logic within the overall flow.
+
+## Node Behaviour
+
+A PocketFlex Node is an Elixir module implementing the `PocketFlex.Node` behaviour. This behaviour defines three required callbacks:
+
+- `prep/1`: 
+  - **Input**: The current `shared_state` (map).
+  - **Output**: `{:ok, prep_data}` or `{:error, reason}`.
+  - **Purpose**: Extracts and validates necessary data from the shared state for the `exec` step. Avoids complex computation.
+- `exec/1`: 
+  - **Input**: `{:ok, prep_data}` from `prep/1` (or `{:error, reason}` if prep failed).
+  - **Output**: `{:ok, exec_result}` or `{:error, reason}`.
+  - **Purpose**: Performs the core logic of the node. This is where computations happen, utilities are called (including LLMs via wrappers), etc. Should be idempotent if possible.
+- `post/3`: 
+  - **Input**: Original `shared_state`, `prep_data` (from `prep/1`), `exec_result` (from `exec/1`).
+  - **Output**: `{:ok, {next_action_atom, updated_state}}` (or `{:error, reason}` for critical errors).
+  - **Purpose**: Updates the `shared_state` based on the execution result and determines the next step in the flow via the `next_action_atom` (e.g., `:default`, `:success`, `:error`). Must handle both success and error cases from `exec/1`.
+
+## Example Node
+
+```elixir
+# lib/my_project/nodes/add_value_node.ex
+defmodule MyProject.Nodes.AddValueNode do
+  @moduledoc "A simple node that adds a value from config to the state."
+  @behaviour PocketFlex.Node
+  require Logger
+
+  def prep(shared_state) do
+    value_to_add = Application.get_env(:my_app, :value_to_add, 10)
+    current_total = Map.get(shared_state, :total, 0)
+    Logger.debug("Prep AddValueNode: Current total=#{current_total}, Value to add=#{value_to_add}")
+    {:ok, %{current_total: current_total, value_to_add: value_to_add}}
+  end
+
+  def exec({:ok, %{current_total: total, value_to_add: value}}) do
+    new_total = total + value
+    Logger.debug("Exec AddValueNode: New total=#{new_total}")
+    {:ok, new_total}
+  end
+  def exec({:error, reason}) do
+    Logger.error("AddValueNode skipped due to prep error: #{inspect(reason)}")
+    {:error, reason}
+  end
+
+  def post(shared_state, _prep_data, {:ok, new_total}) do
+    updated_state = Map.put(shared_state, :total, new_total)
+    {:ok, {:default, updated_state}}
+  end
+  def post(shared_state, _prep_data, {:error, reason}) do
+    Logger.error("AddValueNode failed: #{inspect(reason)}")
+    updated_state = Map.put(shared_state, :error_info, {__MODULE__, reason})
+    {:ok, {:error, updated_state}}
+  end
+end
+```
+
+## Best Practices
+
+- Always use the `@behaviour PocketFlex.Node` annotation for clarity and compile-time checks.
+- Use pattern matching in function heads for error handling and data extraction.
+- Keep `prep/1` simple—only extract and validate data, no side effects.
+- Keep `exec/1` idempotent and pure if possible.
+- Use atoms for all transition actions in `post/3`.
+- Always handle both success and error cases in `post/3`.
+- Add `@moduledoc` and `@doc` to all node modules and public functions.
+
+## References
+- See [Communication](./communication.md) for state design.
+- See [Control Flow](./control_flow.md) for node transitions.
+
+---
+# Design Pattern: Agent
+
+An "Agent" in PocketFlex is a pattern where a node (or set of nodes) uses an LLM to decide what action to take next, often by interpreting state and tool availability.
+
+## Concept in PocketFlex
+
+- **LLM Utility**: Use a utility module (like `LLMCaller`) to invoke an LLM.
+- **Agentic Node(s)**: Nodes prepare a prompt, call the LLM, and parse the result to determine the next action (transition atom or tool invocation).
+- **Tool Nodes/Utilities**: Other nodes perform concrete actions (e.g., web search, DB query) as directed by the agent node.
+
+## Example Flow
+
+```mermaid
+graph TD
+    A[Start: User Query] --> B{Agent Node: Plan Next Step};
+    B -- Decision: Need Search --> C{Tool Node: Web Search};
+    B -- Decision: Need DB Info --> D{Tool Node: Database Query};
+    B -- Decision: Answer Directly --> E{Node: Format Answer};
+    C --> F{Agent Node: Process Search Results};
+    D --> G{Agent Node: Process DB Results};
+    F --> B; # Re-plan based on search
+    G --> B; # Re-plan based on DB info
+    E --> Z[End: Show Answer];
+```
+
+## Implementation Notes
+
+- **Prompt Engineering**: Prompts should include the goal, context, available actions, and instructions for response formatting.
+- **Parsing LLM Output**: The agent node's `post/3` must reliably parse the LLM's output to extract the chosen action and parameters.
+- **State Management**: The agent node updates shared state with its plan or tool results.
+- **Control Flow**: Use transition atoms (e.g., `:need_search`, `:answer_ready`) to route to the correct node.
+- **Separation of Concerns**: Agent nodes decide; tool nodes act.
+
+## Best Practices
+
+- Use a dedicated utility module for LLM calls.
+- Keep agent logic modular and testable.
+- Handle all possible LLM outputs robustly in `post/3`.
+- Document prompt structure and expected LLM output format.
+
+## References
+- See [Node](../core_abstraction/node.md) for node lifecycle.
+- See [Control Flow](../core_abstraction/control_flow.md) for transitions.
+- See [Web Search](../tutorials/web_search.md) for tool integration.
+
+---
+# Design Pattern: MapReduce
+
+The MapReduce pattern involves splitting a large task into smaller, independent sub-tasks (Map), processing them concurrently, and then combining the results (Reduce).
+
+## Concept in PocketFlex
+
+PocketFlex itself might not have a dedicated "MapReduce Node" type, but this pattern can be implemented using standard Elixir concurrency features orchestrated by PocketFlex nodes:
+
+1.  **Setup Node**: Prepares the data. Reads the large dataset or list of items to be processed from the [Shared State](../core_abstraction/communication.md) or an external source.
+2.  **Map Node**: 
+    *   Takes the list of items from the Setup Node.
+    *   Uses `Task.async_stream/3` or `Task.async_stream/5` to concurrently apply a mapping function to each item. This mapping function might:
+        *   Perform a simple transformation.
+        *   Call an external utility (including LLMs via wrappers), etc. Should be idempotent if possible.
+    *   The `exec/1` function manages the `Task.async_stream` and collects all results (which could be `{:ok, result}` or `{:error, reason}` tuples).
+    *   Adds the list of results (including any errors) to the shared state.
+3.  **Reduce Node**: 
+    *   Takes the list of results from the Map Node's output in the shared state.
+    *   Processes the results:
+        *   Filters out or handles errors.
+        *   Aggregates, summarizes, or combines the successful results into a final output.
+    *   Adds the final aggregated result to the shared state.
+
+## Example Flow
+
+```mermaid
+graph TD
+    A[Start: Input Data] --> B(Node: Setup Data Split);
+    B --> C{Node: Map Tasks Concurrently};
+    C --> D(Node: Reduce Results);
+    D --> E[End: Final Result];
+    C -- Error Handling --> F(Node: Handle Task Errors);
+    F --> D; # Feed error summary to Reduce?
+```
+
+## Implementation Notes
+
+- **Concurrency with `Task.async_stream`**: The core of the Map stage is leveraging Elixir's built-in task management. The Map Node's `exec/1` function would look something like this (simplified):
+    ```elixir
+    def exec({:ok, %{items: items_to_process}}) do
+      results = 
+        items_to_process
+        |> Task.async_stream(&process_single_item/1, timeout: 60_000, max_concurrency: 10) 
+        |> Enum.to_list()
+      # results will be a list of {:ok, item_result} or {:error, reason} tuples
+      {:ok, results}
+    end
+    defp process_single_item(item) do
+      # Logic to process one item
+      # May call utilities, LLMs, etc.
+      # Must return {:ok, result} or {:error, reason}
+      # Example:
+      case MyUtility.process(item) do
+         {:ok, processed} -> {:ok, processed}
+         {:error, err} -> {:error, {item, err}} # Include original item in error
+      end
+    end
+    ```
+- **Error Handling**: The `Task.async_stream` collects results including errors. The Reduce Node must explicitly handle potential `{:error, reason}` tuples in the results list.
+- **Resource Management**: Be mindful of `max_concurrency` and `timeout` options in `Task.async_stream` to avoid overwhelming system resources or external APIs.
+- **State**: The large list of items might be passed via the shared state, or the Setup Node might pass references (e.g., IDs to fetch from a DB) to keep the state map smaller, with the Map Node fetching details within `process_single_item/1`. 
+
+## Best Practices
+
+- Use `Task.async_stream` for safe, concurrent processing.
+- Handle all error cases explicitly in the reduce node.
+- Store all results (including errors) in shared state for traceability.
+- Keep map and reduce logic pure and side-effect free when possible.
+
+## References
+- See [Node](../core_abstraction/node.md) for node structure.
+- See [Control Flow](../core_abstraction/control_flow.md) for transitions.
+- See [Workflow](./workflow.md) for more complex orchestration.
+
+---
 # Tutorial: Chatbot
 
 This tutorial outlines building a simple conversational chatbot using PocketFlex and an LLM.
@@ -1028,9 +747,7 @@ We need nodes to handle user input, manage conversation history, call the LLM, a
 - `post`: No state change needed. Returns `{:ok, {:default, state}}` to potentially loop back.
 
 **Node: HandleError**
-- `prep`: Reads error info from state.
-- `exec`: Logs the error, maybe prints a user-friendly error message. Returns `{:ok, nil}`.
-- `post`: Clears error info. Returns `{:ok, {:default, state}}` to end or loop.
+- Standard error handling node.
 
 ## 2. Define Flow
 
@@ -1047,22 +764,18 @@ defmodule MyChatbotApp.Flow do
       start_node: Nodes.GetUserInput,
       nodes: [
         %{module: Nodes.GetUserInput, transitions: %{default: Nodes.PrepareLLMPrompt}},
-
         %{module: Nodes.PrepareLLMPrompt, transitions: %{default: Nodes.CallLLM}},
-
         %{module: Nodes.CallLLM,
           transitions: %{
             default: Nodes.DisplayResponse,
             error: Nodes.HandleError
           }
         },
-
         %{module: Nodes.DisplayResponse,
           transitions: %{
             default: Nodes.GetUserInput # Loop back for next input
           }
         },
-
         %{module: Nodes.HandleError,
           transitions: %{
             default: Nodes.GetUserInput # Loop back after error
@@ -1117,14 +830,6 @@ end
 - **State Persistence**: Save/load conversation history from a database.
 
 ---
-# START: Content from pocket_flex/rules_files/docs/tutorials/code_generation.md
----
-layout: default
-title: "Code Generation"
-parent: "Tutorials"
-nav_order: 3
----
-
 # Tutorial: Code Generation
 
 This tutorial shows how PocketFlex can be used with an LLM to generate code based on a specification.
@@ -1143,7 +848,7 @@ This tutorial shows how PocketFlex can be used with an LLM to generate code base
 
 **Node: ValidateCode (Optional but Recommended)**
 - `prep`: Reads `:generated_code` from state.
-- `exec`: Attempts to parse or validate the code.
+- `exec`: Attempts to parse or validate the code. 
     - Simple validation: Check for basic syntax errors (e.g., using `Code.string_to_quoted/1`).
     - Advanced validation: Write the code to a temporary file and try to compile it (`mix compile`), or run basic tests against it.
 - `post`: Adds validation status (`:ok` or `:error`) and any error messages to state under `:validation_result`. Determines transition (`:valid` or `:invalid`).
@@ -1151,12 +856,10 @@ This tutorial shows how PocketFlex can be used with an LLM to generate code base
 **Node: SaveCode**
 - `prep`: Reads `:generated_code` and maybe a target filename from state.
 - `exec`: Writes the code to the target file (`File.write/2`).
-- `post`: Updates state indicating success/failure.
+- `post`: Updates state indicating success/failure. 
 
 **Node: HandleGenerationError**
-- `prep`: Reads error info (from `GenerateCode` or `ValidateCode`).
-- `exec`: Logs the error, notifies the user.
-- `post`: Clears error state.
+- Standard error handling node.
 
 ## 2. Define Flow
 
@@ -1171,24 +874,20 @@ defmodule MyCodegenApp.Flow do
       start_node: Nodes.GetSpecification,
       nodes: [
         %{module: Nodes.GetSpecification, transitions: %{default: Nodes.GenerateCode}},
-
-        %{module: Nodes.GenerateCode,
+        %{module: Nodes.GenerateCode, 
           transitions: %{default: Nodes.ValidateCode, error: Nodes.HandleGenerationError}
         },
-
-        %{module: Nodes.ValidateCode,
+        %{module: Nodes.ValidateCode, 
           transitions: %{
-            valid: Nodes.SaveCode,
+            valid: Nodes.SaveCode, 
             invalid: Nodes.HandleGenerationError, # Or loop back to GenerateCode?
             error: Nodes.HandleGenerationError # Error during validation itself
            }
         },
-
-        %{module: Nodes.SaveCode,
+        %{module: Nodes.SaveCode, 
           transitions: %{default: :end, error: Nodes.HandleGenerationError}
         },
-
-        %{module: Nodes.HandleGenerationError,
+        %{module: Nodes.HandleGenerationError, 
           transitions: %{default: :end}
         }
       ]
@@ -1222,9 +921,6 @@ defmodule MyCodegenApp do
     end
   end
 end
-
-# To run:
-# mix run -e 'MyCodegenApp.run_codegen("path/to/spec.md", "path/to/output.ex")'
 ```
 
 ## Key Considerations
@@ -1234,14 +930,6 @@ end
 - **Error Handling/Retries**: If validation fails, the flow could loop back to `GenerateCode` with modified instructions (e.g., including the previous error) to attempt self-correction.
 
 ---
-# START: Content from pocket_flex/rules_files/docs/tutorials/web_search.md
----
-layout: default
-title: "Web Search Integration"
-parent: "Tutorials"
-nav_order: 4
----
-
 # Tutorial: Web Search Integration
 
 This tutorial demonstrates integrating an external tool, like a web search API, into a PocketFlex flow.
@@ -1256,14 +944,13 @@ defmodule MySearchApp.Utils.SearchClient do
   @moduledoc """Handles calls to an external web search API."""
   require Logger
 
-  @api_key System.get_env("SEARCH_PROVIDER_API_KEY")
-  @endpoint "https://api.searchprovider.com/search"
+  @search_api_key System.get_env("SEARCH_API_KEY")
+  @search_endpoint "https://api.example-search.com/search"
 
   @spec search(String.t(), keyword()) :: {:ok, list(map())} | {:error, any()}
   def search(query, opts \\ []) do
     num_results = Keyword.get(opts, :num_results, 3)
     Logger.info("Searching web for '#{query}' (max #{num_results} results)...")
-
     # In a real scenario, use Req to make the HTTP call:
     # headers = [authorization: "Bearer #{@api_key}"]
     # params = [q: query, count: num_results]
@@ -1271,7 +958,6 @@ defmodule MySearchApp.Utils.SearchClient do
     #   {:ok, %{status: 200, body: %{"results" => results}}} -> {:ok, results}
     #   ... error handling ...
     # end
-
     # Placeholder for example:
     {:ok, [
       %{title: "Result 1 for #{query}", snippet: "Snippet 1...", url: "http://example.com/1"},
@@ -1320,23 +1006,19 @@ defmodule MySearchApp.Flow do
       start_node: Nodes.GetSearchQuery,
       nodes: [
         %{module: Nodes.GetSearchQuery, transitions: %{default: Nodes.PerformSearch}},
-
-        %{module: Nodes.PerformSearch,
+        %{module: Nodes.PerformSearch, 
           transitions: %{
             default: Nodes.SummarizeResults, # Go to summarize
             error: Nodes.HandleSearchError
           }
         },
-
-        %{module: Nodes.SummarizeResults,
+        %{module: Nodes.SummarizeResults, 
           transitions: %{
-            default: Nodes.DisplayResults,
+            default: Nodes.DisplayResults, 
             error: Nodes.DisplayResults # If LLM fails, still display raw results
           }
         },
-
         %{module: Nodes.DisplayResults, transitions: %{default: :end}},
-
         %{module: Nodes.HandleSearchError, transitions: %{default: :end}}
       ]
     )
@@ -1358,6 +1040,9 @@ defmodule MySearchApp do
     flow_definition = Flow.define_search_flow()
 
     Logger.info("Starting Web Search flow...")
+    # Run the flow (PocketFlex.run might block or run async depending on implementation)
+    # For a chatbot, you might run this within a GenServer or loop manually.
+    # This example assumes PocketFlex.run handles the looping based on transitions.
     case PocketFlex.run(flow_definition, initial_state) do
       {:ok, final_state} ->
         Logger.info("Web Search flow completed.")
@@ -1373,11 +1058,153 @@ end
 # mix run -e "MySearchApp.run_search()"
 ```
 
-This tutorial shows how external tools are wrapped in utility modules and invoked by dedicated PocketFlex nodes within a larger flow.
+## Enhancements
 
+- **API Security**: Store API keys in environment variables, never in code.
+- **LLM Summarization**: Use the summary step to provide concise answers to users.
+- **Error Handling**: Add robust error handling for all external calls.
+- **Pagination**: Support paginated results for large queries.
+- **Rate Limiting**: Respect API rate limits and handle 429 errors gracefully.
 ---
-# START: Content from pocket_flex/rules_files/examples/llm_caller.ex
+# Tutorial: Web Search Integration
+
+This tutorial demonstrates integrating an external tool, like a web search API, into a PocketFlex flow.
+
+## 1. Define Utility
+
+First, create a utility module to handle the web search API call. (We use a simplified example here; a real implementation would use `Req` and handle authentication/errors more robustly).
+
+```elixir
+# lib/my_search_app/utils/search_client.ex
+defmodule MySearchApp.Utils.SearchClient do
+  @moduledoc """Handles calls to an external web search API."""
+  require Logger
+
+  @api_key System.get_env("SEARCH_PROVIDER_API_KEY")
+  @endpoint "https://api.searchprovider.com/search"
+
+  @spec search(String.t(), keyword()) :: {:ok, list(map())} | {:error, any()}
+  def search(query, opts \\ []) do
+    num_results = Keyword.get(opts, :num_results, 3)
+    Logger.info("Searching web for '#{query}' (max #{num_results} results)...")
+    # In a real scenario, use Req to make the HTTP call:
+    # headers = [authorization: "Bearer #{@api_key}"]
+    # params = [q: query, count: num_results]
+    # case Req.get(@endpoint, headers: headers, params: params) do
+    #   {:ok, %{status: 200, body: %{"results" => results}}} -> {:ok, results}
+    #   ... error handling ...
+    # end
+    # Placeholder for example:
+    {:ok, [
+      %{title: "Result 1 for #{query}", snippet: "Snippet 1...", url: "http://example.com/1"},
+      %{title: "Result 2 for #{query}", snippet: "Snippet 2...", url: "http://example.com/2"},
+      %{title: "Result 3 for #{query}", snippet: "Snippet 3...", url: "http://example.com/3"}
+    ] |> Enum.take(num_results)}
+  end
+end
+```
+
+## 2. Define Nodes
+
+**Node: GetSearchQuery**
+- `prep`: None.
+- `exec`: Prompts user for a search query.
+- `post`: Adds query to state as `:search_query`.
+
+**Node: PerformSearch**
+- `prep`: Reads `:search_query` from state.
+- `exec`: Calls `MySearchApp.Utils.SearchClient.search/2` with the query. Returns `{:ok, results_list}` or `{:error, reason}`.
+- `post`: Adds results to state as `:search_results`. Handles errors.
+
+**Node: SummarizeResults (Optional LLM Step)**
+- `prep`: Reads `:search_query` and `:search_results`.
+- `exec`: Formats the search results into a context string. Creates a prompt asking an LLM to summarize the results for the original query. Calls `LLMCaller.invoke_llm/1`.
+- `post`: Adds summary to state as `:search_summary`. Handles LLM errors.
+
+**Node: DisplayResults**
+- `prep`: Reads `:search_results` and optionally `:search_summary`.
+- `exec`: Prints the results (and summary, if available) nicely formatted.
+- `post`: Signals completion.
+
+**Node: HandleSearchError**
+- Standard error handling node.
+
+## 3. Define Flow
+
+```elixir
+# lib/my_search_app/flow.ex
+defmodule MySearchApp.Flow do
+  alias MySearchApp.Nodes
+  # alias PocketFlex
+
+  def define_search_flow do
+    PocketFlex.define(
+      start_node: Nodes.GetSearchQuery,
+      nodes: [
+        %{module: Nodes.GetSearchQuery, transitions: %{default: Nodes.PerformSearch}},
+        %{module: Nodes.PerformSearch, 
+          transitions: %{
+            default: Nodes.SummarizeResults, # Go to summarize
+            error: Nodes.HandleSearchError
+          }
+        },
+        %{module: Nodes.SummarizeResults, 
+          transitions: %{
+            default: Nodes.DisplayResults, 
+            error: Nodes.DisplayResults # If LLM fails, still display raw results
+          }
+        },
+        %{module: Nodes.DisplayResults, transitions: %{default: :end}},
+        %{module: Nodes.HandleSearchError, transitions: %{default: :end}}
+      ]
+    )
+  end
+end
+```
+
+## 4. Run the Flow
+
+```elixir
+# lib/my_search_app.ex
+defmodule MySearchApp do
+  require Logger
+  alias MySearchApp.Flow
+  # alias PocketFlex
+
+  def run_search do
+    initial_state = %{}
+    flow_definition = Flow.define_search_flow()
+
+    Logger.info("Starting Web Search flow...")
+    # Run the flow (PocketFlex.run might block or run async depending on implementation)
+    # For a chatbot, you might run this within a GenServer or loop manually.
+    # This example assumes PocketFlex.run handles the looping based on transitions.
+    case PocketFlex.run(flow_definition, initial_state) do
+      {:ok, final_state} ->
+        Logger.info("Web Search flow completed.")
+        IO.inspect(final_state, label: "Final State")
+      {:error, reason, final_state} ->
+        Logger.error("Web Search flow failed: #{inspect(reason)}")
+        IO.inspect(final_state, label: "Final State on Error")
+    end
+  end
+end
+
+# To run:
+# mix run -e "MySearchApp.run_search()"
+```
+
+## Enhancements
+
+- **API Security**: Store API keys in environment variables, never in code.
+- **LLM Summarization**: Use the summary step to provide concise answers to users.
+- **Error Handling**: Add robust error handling for all external calls.
+- **Pagination**: Support paginated results for large queries.
+- **Rate Limiting**: Respect API rate limits and handle 429 errors gracefully.
 ---
+# Utility: LLM Caller
+
+```elixir
 # lib/my_project/utils/llm_caller.ex
 defmodule MyProject.Utils.LLMCaller do
   @moduledoc """
@@ -1462,8 +1289,9 @@ defmodule MyProject.Utils.LLMCaller do
 end
 
 ---
-# START: Content from pocket_flex/rules_files/examples/flow_definition.ex
----
+# Example Flow Definition
+
+```elixir
 # lib/my_project/flow.ex
 defmodule MyProject.Flow do
   # Assume Nodes are defined elsewhere
@@ -1490,8 +1318,9 @@ defmodule MyProject.Flow do
 end
 
 ---
-# START: Content from pocket_flex/rules_files/examples/synthesize_node.ex
----
+# Example Node: Synthesize
+
+```elixir
 # lib/my_project/nodes/synthesize_node.ex
 defmodule MyProject.Nodes.SynthesizeNode do
   @moduledoc "Node that uses the LLM to synthesize an answer."
@@ -1543,10 +1372,12 @@ defmodule MyProject.Nodes.SynthesizeNode do
      {:ok, {:error, new_state}} # Transition to error state/path
   end
 end
+```
 
 ---
-# START: Content from pocket_flex/rules_files/examples/initial_state.ex
----
+# Example Initial State
+
+```elixir
 # Example initial state definition
 initial_state = %{
   user_query: nil,
@@ -1559,8 +1390,9 @@ initial_state = %{
 # IO.inspect(initial_state.user_query)
 
 ---
-# START: Content from pocket_flex/rules_files/examples/web_search.ex
----
+# Example Web Search
+
+```elixir
 # lib/my_project/utils/web_search.ex
 defmodule MyProject.Utils.WebSearch do
   @moduledoc """Utility for performing web searches."""
@@ -1586,3 +1418,11 @@ defmodule MyProject.Utils.WebSearch do
     end
   end
 end
+
+```
+
+```
+
+```
+
+```
